@@ -1374,62 +1374,84 @@ function InfoTab({ instance }: { instance: DbInstance }) {
 // ─────────────────────────────────────────────────────────────────
 interface LockNode {
   sessionId: string
+  pid: number
   user: string
   host: string
   dbType: string
   sql: string
-  waitTime: number   // 초
+  databaseName: string
+  queryStart: string
+  collectTime: string
+  waitTime: number
   lockType: string
   lockMode: 'X' | 'S' | 'IX' | 'IS'
   status: 'holder' | 'waiter'
+  holderPid?: number
   waiters: LockNode[]
 }
 
 function makeMockLockTree(hasCritical: boolean): LockNode[] {
-  if (!hasCritical) return []   // Active 인스턴스는 Lock 없음
-
+  if (!hasCritical) return []
+  const now = new Date()
+  const ct  = fmtDate(now)
+  const mk  = (sec: number) => fmtDate(new Date(now.getTime() - sec * 1000))
   return [
     {
-      sessionId: '1042', user: 'app_user', host: '10.10.2.5',
-      dbType: 'InnoDB', sql: 'UPDATE orders SET status=? WHERE id=?',
-      waitTime: 0, lockType: 'TABLE', lockMode: 'X', status: 'holder',
+      sessionId: '368448', pid: 368448, user: 'postgres', host: '127.0.0.1',
+      dbType: 'PostgreSQL', sql: "UPDATE table_a SET name = 0 WHERE id = 62",
+      databaseName: 'SSH_TEST', queryStart: mk(15), collectTime: ct,
+      waitTime: 0, lockType: 'ROW', lockMode: 'X', status: 'holder',
       waiters: [
         {
-          sessionId: '1055', user: 'batch', host: '10.10.2.10',
-          dbType: 'InnoDB', sql: 'UPDATE orders SET processed=1 WHERE created_at<?',
-          waitTime: 12, lockType: 'TABLE', lockMode: 'X', status: 'waiter',
-          waiters: [
-            {
-              sessionId: '1078', user: 'report', host: '10.10.2.15',
-              dbType: 'InnoDB', sql: 'SELECT COUNT(*) FROM orders WHERE status=?',
-              waitTime: 8, lockType: 'TABLE', lockMode: 'S', status: 'waiter',
-              waiters: [],
-            },
-          ],
+          sessionId: '368892', pid: 368892, user: 'postgres', host: '127.0.0.1',
+          dbType: 'PostgreSQL', sql: "UPDATE table_a SET name = 0 WHERE id = 62",
+          databaseName: 'SSH_TEST', queryStart: mk(10), collectTime: ct,
+          waitTime: 10, lockType: 'ROW', lockMode: 'X', status: 'waiter',
+          holderPid: 368448, waiters: [],
         },
         {
-          sessionId: '1061', user: 'api_worker', host: '10.10.2.7',
-          dbType: 'InnoDB', sql: 'INSERT INTO orders (user_id, total) VALUES (?,?)',
-          waitTime: 5, lockType: 'ROW', lockMode: 'X', status: 'waiter',
-          waiters: [],
+          sessionId: '369104', pid: 369104, user: 'app_user', host: '10.10.2.7',
+          dbType: 'PostgreSQL', sql: "UPDATE table_a SET value = 'new' WHERE id = 62",
+          databaseName: 'SSH_TEST', queryStart: mk(7), collectTime: ct,
+          waitTime: 7, lockType: 'ROW', lockMode: 'X', status: 'waiter',
+          holderPid: 368448, waiters: [],
         },
       ],
     },
     {
-      sessionId: '1033', user: 'dba_admin', host: '10.10.1.2',
-      dbType: 'InnoDB', sql: 'ALTER TABLE audit_log ADD INDEX idx_created (created_at)',
+      sessionId: '370100', pid: 370100, user: 'dba_admin', host: '10.10.1.2',
+      dbType: 'PostgreSQL', sql: "ALTER TABLE audit_log ADD INDEX idx_created (created_at)",
+      databaseName: 'AUDIT_DB', queryStart: mk(42), collectTime: ct,
       waitTime: 0, lockType: 'TABLE', lockMode: 'X', status: 'holder',
       waiters: [
         {
-          sessionId: '1089', user: 'app_user', host: '10.10.2.5',
-          dbType: 'InnoDB', sql: 'INSERT INTO audit_log (action, ts) VALUES (?,NOW())',
+          sessionId: '370250', pid: 370250, user: 'batch', host: '10.10.2.10',
+          dbType: 'PostgreSQL', sql: "INSERT INTO audit_log (action, ts) VALUES ('login', NOW())",
+          databaseName: 'AUDIT_DB', queryStart: mk(31), collectTime: ct,
           waitTime: 31, lockType: 'TABLE', lockMode: 'IX', status: 'waiter',
-          waiters: [],
+          holderPid: 370100,
+          waiters: [
+            {
+              sessionId: '370388', pid: 370388, user: 'report', host: '10.10.2.15',
+              dbType: 'PostgreSQL', sql: "SELECT COUNT(*) FROM audit_log WHERE ts > NOW() - INTERVAL '1d'",
+              databaseName: 'AUDIT_DB', queryStart: mk(18), collectTime: ct,
+              waitTime: 18, lockType: 'TABLE', lockMode: 'S', status: 'waiter',
+              holderPid: 370250, waiters: [],
+            },
+          ],
         },
       ],
     },
   ]
 }
+
+const LOCK_FILTER_FIELDS = [
+  { key: 'pid',          label: 'PID',           isDefault: true  },
+  { key: 'status',       label: 'Lock Status',   isDefault: true  },
+  { key: 'user',         label: 'User Name',     isDefault: false },
+  { key: 'databaseName', label: 'Database Name', isDefault: false },
+  { key: 'sql',          label: 'SQL Text',      isDefault: false },
+]
 
 const LOCK_MODE_COLOR: Record<string, { bg: string; color: string }> = {
   X:  { bg: '#fee2e2', color: '#dc2626' },
@@ -1440,186 +1462,253 @@ const LOCK_MODE_COLOR: Record<string, { bg: string; color: string }> = {
 
 function LockTreeTab({ instance }: { instance: DbInstance }) {
   const hasCritical = instance.status === 'critical'
-  const lockTree    = makeMockLockTree(hasCritical)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(lockTree.map(n => n.sessionId)))
+  const [lockData, setLockData]     = useState(() => makeMockLockTree(hasCritical))
+  const [expanded, setExpanded]     = useState<Set<string>>(() => new Set(makeMockLockTree(hasCritical).map(n => n.sessionId)))
+  const [fullText, setFullText]     = useState<string | null>(null)
+  const [pidDetail, setPidDetail]   = useState<ActiveSession | null>(null)
+  const [filters, setFilters]       = useState<FilterChip[]>([])
+  const [filterMode, setFilterMode] = useState<'OR' | 'AND'>('OR')
+  const [selected, setSelected]     = useState<Set<number>>(new Set())
+  const [killConfirm, setKillConfirm] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState(() => fmtDate(new Date()))
 
-  const toggleExpand = (sid: string) =>
-    setExpanded(prev => {
-      const next = new Set(prev)
-      next.has(sid) ? next.delete(sid) : next.add(sid)
-      return next
-    })
+  if (pidDetail) {
+    return <PidHistoryView session={pidDetail} onBack={() => setPidDetail(null)} />
+  }
 
-  const totalWaiters = lockTree.reduce((s, n) => s + countWaiters(n), 0)
+  const lockNodeToSession = (node: LockNode): ActiveSession => ({
+    pid: node.pid, userName: node.user, appName: 'psql',
+    clientAddress: node.host, clientHostName: node.host,
+    backendStart: node.queryStart, elapsedTime: node.waitTime,
+    sqlId: '', queryId: '', sqlText: node.sql,
+    waitEvent: 'ClientRead', waitEventType: 'Client',
+    state: node.status === 'holder' ? 'idle in transaction' : 'active',
+    xactStart: node.queryStart, databaseName: node.databaseName, collectTime: node.collectTime,
+  })
+
+  // 필터 적용
+  const applyFilter = (node: LockNode, f: FilterChip): boolean => {
+    const raw = node[f.fieldKey as keyof LockNode]
+    const val = String(raw ?? '').toLowerCase()
+    const fval = f.value.toLowerCase()
+    switch (f.operator) {
+      case '==':       return val === fval
+      case '!=':       return val !== fval
+      case 'like':     return val.includes(fval)
+      case 'not like': return !val.includes(fval)
+      default:         return true
+    }
+  }
+
+  const matchesFilter = (node: LockNode): boolean => {
+    if (filters.length === 0) return true
+    return filterMode === 'OR'
+      ? filters.some(f => applyFilter(node, f))
+      : filters.every(f => applyFilter(node, f))
+  }
+
+  // holder + 펼쳐진 waiter들을 flat 배열로 (필터 적용)
+  const flatRows: Array<{ node: LockNode; depth: number }> = []
+  const flatten = (nodes: LockNode[], depth: number) => {
+    for (const n of nodes) {
+      if (matchesFilter(n)) flatRows.push({ node: n, depth })
+      if (expanded.has(n.sessionId) && n.waiters.length > 0) flatten(n.waiters, depth + 1)
+    }
+  }
+  flatten(lockData, 0)
+
+  // 전체 선택
+  const allPids = flatRows.map(r => r.node.pid)
+  const allChecked = allPids.length > 0 && allPids.every(p => selected.has(p))
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(allPids))
+  const toggleRow = (pid: number) => setSelected(prev => {
+    const next = new Set(prev); next.has(pid) ? next.delete(pid) : next.add(pid); return next
+  })
+
+  // Kill — 선택된 PID 및 그 하위 waiter 모두 제거
+  const killPids = (pids: Set<number>, nodes: LockNode[]): LockNode[] =>
+    nodes.filter(n => !pids.has(n.pid)).map(n => ({ ...n, waiters: killPids(pids, n.waiters) }))
+
+  const killSelected = () => {
+    setLockData(prev => killPids(selected, prev))
+    setSelected(new Set())
+    setKillConfirm(false)
+  }
+
+  const refresh = () => {
+    setLockData(makeMockLockTree(hasCritical))
+    setSelected(new Set())
+    setLastUpdated(fmtDate(new Date()))
+  }
+
+  const COLS = [
+    { key: 'pid',          label: 'PID',           w: 100 },
+    { key: 'status',       label: 'Lock Status',   w: 90  },
+    { key: 'holderPid',    label: 'Holder PID',    w: 90  },
+    { key: 'user',         label: 'User Name',     w: 100 },
+    { key: 'databaseName', label: 'Database Name', w: 120 },
+    { key: 'sql',          label: 'SQL Text',      w: 200 },
+    { key: 'queryStart',   label: 'Query Start',   w: 148 },
+    { key: 'collectTime',  label: 'Collect Time',  w: 148 },
+  ]
+  const thStyle: React.CSSProperties = {
+    padding: '8px 12px', borderBottom: '1px solid var(--border)', textAlign: 'left',
+    fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap', background: '#f9fafb',
+  }
+  const tdStyle: React.CSSProperties = {
+    padding: '8px 12px', borderBottom: '1px solid #f3f4f6', fontSize: 12,
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <>
+      {fullText && <SqlFullTextModal sql={fullText} onClose={() => setFullText(null)} />}
 
-      {/* 요약 바 */}
-      <div style={{ display: 'flex', gap: 12 }}>
-        {[
-          { label: 'Lock Holder', value: lockTree.length,  color: '#dc2626', bg: '#fee2e2' },
-          { label: 'Wait Session', value: totalWaiters,     color: '#d97706', bg: '#fef3c7' },
-          { label: 'Max Wait Time',value: hasCritical ? '31s' : '0s', color: '#7c3aed', bg: '#f5f3ff' },
-          { label: 'Dead Lock',    value: hasCritical ? 0 : 0,        color: '#374151', bg: '#f9fafb' },
-        ].map(s => (
-          <div key={s.label} style={{ flex: 1, background: s.bg, border: `1px solid ${s.color}33`, borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+      {/* Kill 확인 모달 */}
+      {killConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setKillConfirm(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} />
+          <div style={{ position: 'relative', background: '#fff', borderRadius: 8, padding: 24, width: 320, boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>세션 종료 확인</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+              선택된 {selected.size}개 세션을 종료하시겠습니까?
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setKillConfirm(false)} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer' }}>취소</button>
+              <button onClick={killSelected} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 4, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>종료</button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Lock Tree */}
-      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Lock Tree</span>
-          {hasCritical && (
-            <span style={{ fontSize: 11, background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
-              ● Lock 감지됨
-            </span>
-          )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* 헤더 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Lock 세션 목록</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{lastUpdated}</span>
         </div>
 
-        {lockTree.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#059669', fontSize: 13 }}>
+        {/* FilterBar + Kill + Get */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <select
+            value={filterMode}
+            onChange={e => setFilterMode(e.target.value as 'OR' | 'AND')}
+            style={{ padding: '4px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 4, background: '#fff', cursor: 'pointer', height: 34, flexShrink: 0 }}
+          >
+            <option>OR</option>
+            <option>AND</option>
+          </select>
+
+          <FilterBar
+            filters={filters}
+            fields={LOCK_FILTER_FIELDS}
+            onAdd={chip => setFilters(prev => [...prev, chip])}
+            onRemove={id => setFilters(prev => prev.filter(f => f.id !== id))}
+            onClear={() => setFilters([])}
+          />
+
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              disabled={selected.size === 0}
+              onClick={() => selected.size > 0 && setKillConfirm(true)}
+              style={{
+                padding: '5px 14px', fontSize: 12, borderRadius: 4, height: 34,
+                cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
+                border: '1px solid var(--border)',
+                background: selected.size > 0 ? '#dc2626' : 'var(--card-bg)',
+                color: selected.size > 0 ? '#fff' : 'var(--text-muted)', fontWeight: 600,
+              }}
+            >Multi Kill</button>
+            <button
+              onClick={refresh}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, height: 34, padding: '5px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--card-bg)' }}
+            >↻ Get</button>
+          </div>
+        </div>
+
+        {/* 테이블 */}
+        {lockData.length === 0 ? (
+          <div style={{ padding: 60, textAlign: 'center', color: '#059669', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }}>
             ✓ 현재 Lock이 없습니다
           </div>
         ) : (
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {lockTree.map(root => (
-              <LockTreeNode
-                key={root.sessionId}
-                node={root}
-                depth={0}
-                expanded={expanded}
-                onToggle={toggleExpand}
-              />
-            ))}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: 36, padding: '8px 10px' }}>
+                      <input type="checkbox" checked={allChecked} onChange={toggleAll} style={{ cursor: 'pointer' }} />
+                    </th>
+                    {COLS.map(c => <th key={c.key} style={{ ...thStyle, minWidth: c.w }}>{c.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {flatRows.map(({ node, depth }) => {
+                    const isHolder    = node.status === 'holder'
+                    const hasChildren = node.waiters.length > 0
+                    const isExp       = expanded.has(node.sessionId)
+                    const isSel       = selected.has(node.pid)
+                    return (
+                      <tr
+                        key={node.sessionId}
+                        style={{ background: isSel ? 'rgba(0,109,255,.08)' : depth > 0 ? '#fffdf0' : '#fff' }}
+                        onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(0,0,0,.03)' }}
+                        onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLTableRowElement).style.background = depth > 0 ? '#fffdf0' : '#fff' }}
+                      >
+                        <td style={{ ...tdStyle, padding: '8px 10px', textAlign: 'center' }}>
+                          <input type="checkbox" checked={isSel} onChange={() => toggleRow(node.pid)} style={{ cursor: 'pointer' }} />
+                        </td>
+
+                        {/* PID */}
+                        <td style={tdStyle}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: depth * 20 }}>
+                            {isHolder && hasChildren ? (
+                              <button
+                                onClick={() => setExpanded(prev => { const next = new Set(prev); next.has(node.sessionId) ? next.delete(node.sessionId) : next.add(node.sessionId); return next })}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted)', padding: '0 2px', lineHeight: 1 }}
+                              >{isExp ? '▼' : '▶'}</button>
+                            ) : <span style={{ width: 14, display: 'inline-block' }} />}
+                            <button onClick={() => setPidDetail(lockNodeToSession(node))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#006DFF', fontSize: 12, padding: 0, fontWeight: 500 }}
+                            >{node.pid}</button>
+                          </div>
+                        </td>
+
+                        {/* Lock Status */}
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 700, background: isHolder ? '#fee2e2' : '#fef3c7', color: isHolder ? '#dc2626' : '#d97706' }}>
+                            {isHolder ? 'holder' : 'waiter'}
+                          </span>
+                        </td>
+
+                        <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{node.holderPid ?? ''}</td>
+                        <td style={tdStyle}>{node.user}</td>
+                        <td style={tdStyle}>{node.databaseName}</td>
+
+                        {/* SQL Text */}
+                        <td style={{ ...tdStyle, maxWidth: 200 }}>
+                          <button onClick={() => setFullText(node.sql)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#006DFF', fontSize: 12, padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200, display: 'block' }}
+                          >{node.sql.length > 28 ? node.sql.slice(0, 28) + ' ...' : node.sql}</button>
+                        </td>
+
+                        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{node.queryStart}</td>
+                        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{node.collectTime}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Lock 범례 */}
-      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>Lock Mode 범례</div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
-          {Object.entries(LOCK_MODE_COLOR).map(([mode, style]) => (
-            <div key={mode} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ padding: '2px 8px', borderRadius: 4, background: style.bg, color: style.color, fontWeight: 700, fontSize: 11 }}>{mode}</span>
-              <span style={{ color: 'var(--text-muted)' }}>
-                {mode === 'X' ? 'Exclusive (배타 잠금)' : mode === 'S' ? 'Shared (공유 잠금)' : mode === 'IX' ? 'Intent Exclusive' : 'Intent Shared'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   )
 }
 
 function countWaiters(node: LockNode): number {
   return node.waiters.reduce((s, w) => s + 1 + countWaiters(w), 0)
-}
-
-function LockTreeNode({
-  node, depth, expanded, onToggle,
-}: {
-  node: LockNode
-  depth: number
-  expanded: Set<string>
-  onToggle: (sid: string) => void
-}) {
-  const isExpanded   = expanded.has(node.sessionId)
-  const hasChildren  = node.waiters.length > 0
-  const modeStyle    = LOCK_MODE_COLOR[node.lockMode]
-  const isHolder     = node.status === 'holder'
-
-  return (
-    <div style={{ marginLeft: depth * 28 }}>
-      {/* 연결선 */}
-      {depth > 0 && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 4 }}>
-          <div style={{ width: 20, borderLeft: '2px solid #e3e7ea', borderBottom: '2px solid #e3e7ea', height: 16, flexShrink: 0, marginRight: 8, marginTop: -8 }} />
-        </div>
-      )}
-
-      {/* 노드 카드 */}
-      <div style={{
-        border: `1px solid ${isHolder ? '#fca5a5' : '#fcd34d'}`,
-        borderRadius: 8,
-        background: isHolder ? '#fff5f5' : '#fffbeb',
-        overflow: 'hidden',
-      }}>
-        {/* 노드 헤더 */}
-        <div
-          onClick={() => hasChildren && onToggle(node.sessionId)}
-          style={{
-            padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
-            cursor: hasChildren ? 'pointer' : 'default',
-            background: isHolder ? '#fee2e210' : 'transparent',
-          }}
-        >
-          {/* 확장 토글 */}
-          {hasChildren ? (
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 14, flexShrink: 0 }}>
-              {isExpanded ? '▼' : '▶'}
-            </span>
-          ) : (
-            <span style={{ width: 14, flexShrink: 0 }} />
-          )}
-
-          {/* 상태 뱃지 */}
-          <span style={{
-            fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, flexShrink: 0,
-            background: isHolder ? '#fee2e2' : '#fef3c7',
-            color: isHolder ? '#dc2626' : '#d97706',
-          }}>
-            {isHolder ? '🔒 HOLDER' : `⏳ WAITER +${node.waitTime}s`}
-          </span>
-
-          {/* Lock Mode */}
-          <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 700, flexShrink: 0, background: modeStyle.bg, color: modeStyle.color }}>
-            {node.lockMode}
-          </span>
-
-          {/* 세션 정보 */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Session #{node.sessionId}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{node.user}@{node.host}</span>
-              <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', padding: '1px 6px', borderRadius: 3 }}>
-                {node.lockType}
-              </span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {node.sql}
-            </div>
-          </div>
-
-          {/* 대기 자식 수 */}
-          {hasChildren && (
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
-              대기 {node.waiters.length}개
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 자식 노드들 */}
-      {hasChildren && isExpanded && (
-        <div style={{ marginTop: 6, paddingLeft: 14, borderLeft: '2px solid #e3e7ea', marginLeft: 20 }}>
-          {node.waiters.map(child => (
-            <div key={child.sessionId} style={{ marginTop: 8 }}>
-              <LockTreeNode node={child} depth={0} expanded={expanded} onToggle={onToggle} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 // ── Active Session Tab ────────────────────────────────────────────
 interface ActiveSession {
