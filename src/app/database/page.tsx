@@ -357,9 +357,10 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
           {tab === '액티브 세션' && <ActiveSessionTab />}
           {tab === 'SQL 목록' && <SqlTab />}
           {tab === 'Lock 정보' && <LockTreeTab instance={instance} />}
+          {tab === '알람' && <AlarmTab />}
           {tab === '파라미터' && <ParameterTab />}
           {tab === '호스트 프로세스 목록' && <HostProcessTab />}
-          {!['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','파라미터','호스트 프로세스 목록'].includes(tab) && (
+          {!['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록'].includes(tab) && (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'var(--text-muted)', fontSize: 13 }}>
               {tab} 탭 — 다음 Sprint에서 구현 예정
             </div>
@@ -367,6 +368,446 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
         </div>
       </div>
     </>
+  )
+}
+
+// ── Alarm Detail View ─────────────────────────────────────────────
+interface AlarmRealtimeRow {
+  id: number
+  lastAlert: 'Normal' | 'Warning' | 'Critical'
+  alertStatName: string
+  alertValue: string
+  target: string
+  firstTriggered: string
+  lastTriggered: string
+  duration: number
+  alias: string
+}
+
+function makeRealtimeMock(alarm: AlarmRule): AlarmRealtimeRow[] {
+  if (!alarm.threshold) return []
+  return [
+    {
+      id: 1,
+      lastAlert: alarm.lastAlert,
+      alertStatName: alarm.alertStatName,
+      alertValue: alarm.value ? `${alarm.value} %` : '',
+      target: alarm.target,
+      firstTriggered: '2026-03-17 19:58:00',
+      lastTriggered: alarm.lastTriggered || '2026-03-22 17:36:00',
+      duration: 423480.037,
+      alias: alarm.alias,
+    },
+  ]
+}
+
+const ALARM_DETAIL_FILTER_FIELDS = [
+  { id:'alertStatName', label:'Alert Stat Name', operators:['contains','='] },
+  { id:'target',        label:'Target',          operators:['contains','='] },
+  { id:'lastAlert',     label:'Last Alert',      operators:['='], values:['Normal','Warning','Critical'] },
+]
+
+function AlarmDetailView({ alarm, onBack }: { alarm: AlarmRule; onBack: () => void }) {
+  const [detailTab, setDetailTab] = useState<'정보' | '실시간' | '과거 이력'>('실시간')
+  const [rtPaused, setRtPaused] = useState(false)
+  const [rtFilters, setRtFilters] = useState<FilterChip[]>([])
+  const [rtFilterMode, setRtFilterMode] = useState<'OR'|'AND'>('OR')
+  const [rtSelected, setRtSelected] = useState<Set<number>>(new Set())
+  const [rtNow, setRtNow] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+  })
+
+  useEffect(() => {
+    if (rtPaused) return
+    const id = setInterval(() => {
+      const d = new Date()
+      setRtNow(`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [rtPaused])
+
+  const rtRows = useMemo(() => {
+    const rows = makeRealtimeMock(alarm)
+    if (rtFilters.length === 0) return rows
+    const check = (r: AlarmRealtimeRow, f: FilterChip) => {
+      const val = String((r as any)[f.field] ?? '').toLowerCase()
+      const fv = f.value.toLowerCase()
+      return f.operator === 'contains' ? val.includes(fv) : val === fv
+    }
+    return rows.filter(r =>
+      rtFilterMode === 'OR' ? rtFilters.some(f => check(r, f)) : rtFilters.every(f => check(r, f))
+    )
+  }, [alarm, rtFilters, rtFilterMode])
+
+  const alertBadge = (v: 'Normal' | 'Warning' | 'Critical') => {
+    if (v === 'Critical') return { background:'#ef4444', color:'#fff', border:'none' }
+    if (v === 'Warning')  return { background:'#f59e0b', color:'#fff', border:'none' }
+    return { background:'transparent', color:'#16a34a', border:'1px solid #16a34a' }
+  }
+
+  const navBtnS: React.CSSProperties = {
+    background:'none', border:'1px solid var(--border)', borderRadius:3,
+    padding:'2px 6px', cursor:'pointer', color:'var(--text-muted)', fontSize:11,
+  }
+
+  const allChecked = rtRows.length > 0 && rtRows.every(r => rtSelected.has(r.id))
+  const toggleAll = () => setRtSelected(allChecked ? new Set() : new Set(rtRows.map(r => r.id)))
+  const toggleOne = (id: number) => setRtSelected(prev => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s
+  })
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* ── 상단 헤더 ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:10, borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <button onClick={onBack} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'0 4px 0 0' }}>{'<'}</button>
+          <span style={{ fontSize:13, color:'var(--text-primary)' }}>
+            알람: <strong>{alarm.ruleName}</strong> ({alarm.target})
+          </span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button style={{ ...navBtnS, display:'flex', alignItems:'center', gap:4 }}>
+            <span style={{ fontSize:11 }}>⊙</span> 슬라이드 내역
+          </button>
+          <button onClick={onBack} style={{ ...navBtnS, padding:'2px 8px' }}>✕</button>
+        </div>
+      </div>
+
+      {/* ── 탭 ── */}
+      <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        {(['정보','실시간','과거 이력'] as const).map(t => (
+          <button key={t} onClick={() => setDetailTab(t)}
+            style={{ padding:'8px 16px', fontSize:12, border:'none', borderBottom: detailTab === t ? '2px solid #3b82f6' : '2px solid transparent', background:'transparent', color: detailTab === t ? '#3b82f6' : 'var(--text-muted)', cursor:'pointer', fontWeight: detailTab === t ? 600 : 400 }}
+          >{t}</button>
+        ))}
+      </div>
+
+      {/* ── 정보 탭 ── */}
+      {detailTab === '정보' && (
+        <div style={{ textAlign:'center', paddingTop:60, color:'var(--text-muted)', fontSize:13 }}>
+          정보 탭 — 다음 Sprint에서 구현 예정
+        </div>
+      )}
+
+      {/* ── 실시간 탭 ── */}
+      {detailTab === '실시간' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', paddingTop:10 }}>
+          {/* 실시간 헤더 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8, flexShrink:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)' }}>실시간 목록</span>
+              <span style={{ fontSize:11, color:'var(--text-muted)', cursor:'help' }} title="실시간 알람 목록">?</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              {!rtPaused && (
+                <button style={{ padding:'2px 10px', borderRadius:3, border:'1px solid #16a34a', background:'transparent', color:'#16a34a', fontSize:11, cursor:'default', fontWeight:600 }}>Live</button>
+              )}
+              <span style={{ fontSize:11, color:'var(--text-muted)', fontVariantNumeric:'tabular-nums' }}>{rtNow}</span>
+              <button onClick={() => setRtPaused(p => !p)}
+                style={{ ...navBtnS, background: rtPaused ? 'rgba(0,109,255,.15)' : 'none', color: rtPaused ? '#006DFF' : 'var(--text-muted)' }}
+              >{rtPaused ? '▶' : '⏸'}</button>
+              <button style={{ padding:'2px 10px', borderRadius:3, border:'1px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:11, cursor:'pointer' }}>알림 제거</button>
+            </div>
+          </div>
+
+          {/* 필터 행 */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexShrink:0 }}>
+            <select value={rtFilterMode} onChange={e => setRtFilterMode(e.target.value as 'OR'|'AND')}
+              style={{ padding:'4px 8px', fontSize:12, border:'1px solid #d1d5db', borderRadius:4, background:'#fff', color:'#374151', cursor:'pointer', height:34, flexShrink:0 }}>
+              <option>OR</option>
+              <option>AND</option>
+            </select>
+            <FilterBar
+              filters={rtFilters}
+              onAdd={chip => setRtFilters(prev => [...prev, chip])}
+              onRemove={id => setRtFilters(prev => prev.filter(f => f.id !== id))}
+              onClear={() => setRtFilters([])}
+              fields={ALARM_DETAIL_FILTER_FIELDS}
+            />
+            <button style={{ ...navBtnS, marginLeft:'auto', padding:'3px 8px' }}>···</button>
+          </div>
+
+          {/* 테이블 */}
+          <div style={{ flex:1, overflow:'auto', border:'1px solid #d1d5db', borderRadius:4 }}>
+            <table style={{ borderCollapse:'collapse', width:'max-content', minWidth:'100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding:'8px 12px', background:'#f9fafb', borderBottom:'1px solid #e5e7eb', width:36 }}>
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} style={{ accentColor:'#3b82f6' }} />
+                  </th>
+                  {(['Last Alert','Alert Stat Name','Alert Value','Target','First Triggered','Last Triggered','Duration (sec)','Alias'] as const).map(h => (
+                    <th key={h} style={{ padding:'8px 12px', textAlign:'left', background:'#f9fafb', borderBottom:'1px solid #e5e7eb', fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rtRows.map((r, i) => (
+                  <tr key={r.id} style={{ borderBottom:'1px solid #e5e7eb', background: i % 2 !== 0 ? 'rgba(0,0,0,.015)' : 'transparent' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(0,0,0,.04)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = i % 2 !== 0 ? 'rgba(0,0,0,.015)' : 'transparent' }}
+                  >
+                    <td style={{ padding:'7px 12px' }}>
+                      <input type="checkbox" checked={rtSelected.has(r.id)} onChange={() => toggleOne(r.id)} style={{ accentColor:'#3b82f6' }} />
+                    </td>
+                    <td style={{ padding:'7px 12px' }}>
+                      <span style={{ padding:'2px 8px', borderRadius:4, fontSize:11, fontWeight:600, ...alertBadge(r.lastAlert) }}>{r.lastAlert}</span>
+                    </td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.alertStatName}</td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.alertValue}</td>
+                    <td style={{ padding:'7px 12px', fontSize:12 }}>
+                      <span style={{ padding:'2px 8px', borderRadius:3, background:'#f3f4f6', color:'#374151', fontSize:11 }}>{r.target}</span>
+                    </td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', whiteSpace:'nowrap' }}>{r.firstTriggered}</td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', whiteSpace:'nowrap' }}>{r.lastTriggered}</td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', textAlign:'right' }}>{r.duration.toLocaleString('en', { minimumFractionDigits:3, maximumFractionDigits:3 })}</td>
+                    <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.alias}</td>
+                  </tr>
+                ))}
+                {rtRows.length === 0 && (
+                  <tr>
+                    <td colSpan={9} style={{ padding:'40px 0', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>실시간 알람이 없습니다</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── 과거 이력 탭 ── */}
+      {detailTab === '과거 이력' && (
+        <div style={{ textAlign:'center', paddingTop:60, color:'var(--text-muted)', fontSize:13 }}>
+          과거 이력 탭 — 다음 Sprint에서 구현 예정
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Alarm Tab ─────────────────────────────────────────────────────
+interface AlarmRule {
+  id: number
+  ruleName: string
+  alertStatName: string
+  target: string
+  alias: string
+  lastTriggered: string
+  ruleType: 'System' | 'Metric'
+  lastAlert: 'Normal' | 'Warning' | 'Critical'
+  threshold: { text: string; warning: number; critical: number } | null
+  value: string
+}
+
+const ALARM_MOCK: AlarmRule[] = [
+  { id:1, ruleName:'Database:DbDisconnected',                                          alertStatName:'',                  target:'database:MF0251105', alias:'', lastTriggered:'2026-03-22 00:00:12', ruleType:'System', lastAlert:'Normal',   threshold:null,                                                                       value:''       },
+  { id:2, ruleName:'Database:AgentDisconnected',                                       alertStatName:'',                  target:'database:MF0251105', alias:'', lastTriggered:'',                    ruleType:'System', lastAlert:'Normal',   threshold:null,                                                                       value:''       },
+  { id:3, ruleName:'Database:LazyQueryExecution',                                      alertStatName:'',                  target:'database:MF0251105', alias:'', lastTriggered:'',                    ruleType:'System', lastAlert:'Normal',   threshold:null,                                                                       value:''       },
+  { id:4, ruleName:'MEMORY_TEST(SSH)-[exemone_metadata]-[(OS) Memory Used]',           alertStatName:'(OS) Memory Percent',target:'database:MF0251105', alias:'', lastTriggered:'2026-03-22 17:36:00', ruleType:'Metric', lastAlert:'Critical', threshold:{ text:'(OS) Memory Percent 실시간 >',           warning:10, critical:20 }, value:'82.263' },
+  { id:5, ruleName:'DB CPU Usage',                                                     alertStatName:'(OS) Cpu Usage',    target:'database:MF0251105', alias:'', lastTriggered:'2026-03-21 00:27:00', ruleType:'Metric', lastAlert:'Normal',   threshold:{ text:'(OS) Cpu Usage 실시간 >=',              warning:80, critical:90 }, value:'10.417' },
+  { id:6, ruleName:'DB Memory Usage',                                                  alertStatName:'(OS) Memory Percent',target:'database:MF0251105', alias:'', lastTriggered:'2026-03-21 00:27:00', ruleType:'Metric', lastAlert:'Normal',   threshold:{ text:'(OS) Memory Percent 실시간 >=',         warning:90, critical:95 }, value:'82.274' },
+  { id:7, ruleName:'Active Session Count(PostgreSQL)',                                  alertStatName:'Active Backend',    target:'database:MF0251105', alias:'', lastTriggered:'',                    ruleType:'Metric', lastAlert:'Normal',   threshold:{ text:'Active Backend 평균 집계 범위 최근 5 분 >', warning:50, critical:70 }, value:'0'      },
+]
+
+const ALARM_FILTER_FIELDS = [
+  { id:'ruleName',      label:'Rule Name',       operators:['contains','='] },
+  { id:'alertStatName', label:'Alert Stat Name', operators:['contains','='] },
+  { id:'target',        label:'Target',          operators:['contains','='] },
+  { id:'alias',         label:'Alias',           operators:['contains','='] },
+  { id:'ruleType',      label:'Rule Type',       operators:['='],           values:['System','Metric'] },
+  { id:'lastAlert',     label:'Last Alert',      operators:['='],           values:['Normal','Warning','Critical'] },
+]
+
+function AlarmTab() {
+  const [live, setLive] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [onlyAlert, setOnlyAlert] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'bar'>('list')
+  const [selectedAlarm, setSelectedAlarm] = useState<AlarmRule | null>(null)
+  const [filters, setFilters] = useState<FilterChip[]>([])
+  const [filterMode, setFilterMode] = useState<'OR'|'AND'>('OR')
+  const [now, setNow] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+  })
+
+  useEffect(() => {
+    if (!live || paused) return
+    const id = setInterval(() => {
+      const d = new Date()
+      setNow(`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [live, paused])
+
+  const filtered = useMemo(() => {
+    let rows = onlyAlert ? ALARM_MOCK.filter(r => r.lastAlert !== 'Normal') : ALARM_MOCK
+    if (filters.length === 0) return rows
+    const check = (r: AlarmRule, f: FilterChip) => {
+      const val = String((r as any)[f.field] ?? '').toLowerCase()
+      const fv = f.value.toLowerCase()
+      return f.operator === 'contains' ? val.includes(fv) : val === fv
+    }
+    return rows.filter(r =>
+      filterMode === 'OR' ? filters.some(f => check(r, f)) : filters.every(f => check(r, f))
+    )
+  }, [filters, filterMode, onlyAlert])
+
+  const alertBadge = (v: 'Normal' | 'Warning' | 'Critical') => {
+    if (v === 'Critical') return { background:'#ef4444', color:'#fff', border:'none' }
+    if (v === 'Warning')  return { background:'#f59e0b', color:'#fff', border:'none' }
+    return { background:'transparent', color:'#16a34a', border:'1px solid #16a34a' }
+  }
+
+  const navBtnS: React.CSSProperties = {
+    background:'none', border:'1px solid var(--border)', borderRadius:3,
+    padding:'2px 6px', cursor:'pointer', color:'var(--text-muted)', fontSize:11,
+  }
+
+  if (selectedAlarm) {
+    return <AlarmDetailView alarm={selectedAlarm} onBack={() => setSelectedAlarm(null)} />
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* ── 헤더 행 ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:8, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)' }}>룰 목록</span>
+          <span style={{ fontSize:11, color:'var(--text-muted)', cursor:'help' }} title="알람 룰 목록">?</span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          {!paused && (
+            <button
+              style={{ padding:'2px 10px', borderRadius:3, border:'1px solid #16a34a', background:'transparent', color:'#16a34a', fontSize:11, cursor:'default', fontWeight:600 }}
+            >Live</button>
+          )}
+          <span style={{ fontSize:11, color:'var(--text-muted)', fontVariantNumeric:'tabular-nums' }}>{now}</span>
+          <button
+            onClick={() => setPaused(p => !p)}
+            style={{ ...navBtnS, background: paused ? 'rgba(0,109,255,.15)' : 'none', color: paused ? '#006DFF' : 'var(--text-muted)' }}
+          >{paused ? '▶' : '⏸'}</button>
+        </div>
+      </div>
+
+      {/* ── 필터 행 ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexShrink:0 }}>
+        <select value={filterMode} onChange={e => setFilterMode(e.target.value as 'OR'|'AND')}
+          style={{ padding:'4px 8px', fontSize:12, border:'1px solid #d1d5db', borderRadius:4, background:'#fff', color:'#374151', cursor:'pointer', height:34, flexShrink:0 }}>
+          <option>OR</option>
+          <option>AND</option>
+        </select>
+        <FilterBar
+          filters={filters}
+          onAdd={chip => setFilters(prev => [...prev, chip])}
+          onRemove={id => setFilters(prev => prev.filter(f => f.id !== id))}
+          onClear={() => setFilters([])}
+          fields={ALARM_FILTER_FIELDS}
+        />
+        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, color:'var(--text)', cursor:'pointer', whiteSpace:'nowrap' }}>
+            <input type="checkbox" checked={onlyAlert} onChange={e => setOnlyAlert(e.target.checked)} style={{ accentColor:'#3b82f6' }} />
+            발생 알람만 보기
+          </label>
+          <div style={{ display:'flex', gap:2 }}>
+            {(['list','bar'] as const).map(m => (
+              <button key={m} onClick={() => setViewMode(m)}
+                style={{ padding:'3px 8px', borderRadius:3, border:'1px solid var(--border)', background: viewMode === m ? '#3b82f6' : 'var(--surface)', color: viewMode === m ? '#fff' : 'var(--text-muted)', fontSize:11, cursor:'pointer' }}
+              >{m === 'list' ? '≡ 목록' : '바'}</button>
+            ))}
+          </div>
+          <button style={{ ...navBtnS, padding:'3px 8px' }}>···</button>
+        </div>
+      </div>
+
+      {/* ── 바 뷰 placeholder ── */}
+      {viewMode === 'bar' ? (
+        <div style={{ textAlign:'center', paddingTop:60, color:'var(--text-muted)', fontSize:13 }}>
+          바 뷰 — 다음 Sprint에서 구현 예정
+        </div>
+      ) : (
+        /* ── 테이블 ── */
+        <div style={{ flex:1, overflow:'auto', border:'1px solid #d1d5db', borderRadius:4 }}>
+          <table style={{ borderCollapse:'collapse', width:'max-content', minWidth:'100%' }}>
+            <thead>
+              <tr>
+                {([
+                  { label:'Rule Name',       w:320 },
+                  { label:'Alert Stat Name', w:160 },
+                  { label:'Target',          w:160 },
+                  { label:'Alias',           w:100 },
+                  { label:'Last Triggered',  w:150 },
+                  { label:'Rule Type',       w:90  },
+                  { label:'Last Alert',      w:90  },
+                  { label:'Threshold',       w:420 },
+                  { label:'Value',           w:80  },
+                ] as const).map(c => (
+                  <th key={c.label} style={{ padding:'8px 12px', textAlign:'left', background:'#f9fafb', borderBottom:'1px solid #e5e7eb', fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'nowrap', minWidth:c.w }}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, i) => (
+                <tr key={r.id} style={{ background: i % 2 !== 0 ? 'rgba(0,0,0,.015)' : 'transparent', borderBottom:'1px solid #e5e7eb' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(0,0,0,.04)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = i % 2 !== 0 ? 'rgba(0,0,0,.015)' : 'transparent' }}
+                >
+                  {/* Rule Name */}
+                  <td style={{ padding:'7px 12px', fontSize:12 }}>
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                      <span style={{ width:14, height:14, borderRadius:'50%', background:'#3b82f6', color:'#fff', fontSize:9, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>i</span>
+                      <button onClick={() => setSelectedAlarm(r)}
+                        style={{ background:'none', border:'none', color:'#3b82f6', cursor:'pointer', fontSize:12, textDecoration:'none', padding:0, textAlign:'left' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.textDecoration='underline' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.textDecoration='none' }}
+                      >{r.ruleName}</button>
+                    </span>
+                  </td>
+                  {/* Alert Stat Name */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.alertStatName}</td>
+                  {/* Target */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.target}</td>
+                  {/* Alias */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.alias}</td>
+                  {/* Last Triggered */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', whiteSpace:'nowrap' }}>{r.lastTriggered}</td>
+                  {/* Rule Type */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151' }}>{r.ruleType}</td>
+                  {/* Last Alert */}
+                  <td style={{ padding:'7px 12px' }}>
+                    <span style={{ padding:'2px 8px', borderRadius:4, fontSize:11, fontWeight:600, ...alertBadge(r.lastAlert) }}>
+                      {r.lastAlert}
+                    </span>
+                  </td>
+                  {/* Threshold */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', whiteSpace:'nowrap' }}>
+                    {r.threshold && (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:4, flexWrap:'nowrap' }}>
+                        <span>{r.threshold.text}</span>
+                        <span style={{ padding:'1px 6px', borderRadius:3, background:'#f59e0b', color:'#fff', fontSize:11, fontWeight:600 }}>Warning</span>
+                        <span style={{ fontSize:12 }}>{r.threshold.warning}</span>
+                        <span style={{ padding:'1px 6px', borderRadius:3, background:'#ef4444', color:'#fff', fontSize:11, fontWeight:600 }}>Critical</span>
+                        <span style={{ fontSize:12 }}>{r.threshold.critical}</span>
+                      </span>
+                    )}
+                  </td>
+                  {/* Value */}
+                  <td style={{ padding:'7px 12px', fontSize:12, color:'#374151', textAlign:'right' }}>{r.value}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding:'40px 0', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>발생 알람이 없습니다</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -2290,12 +2731,10 @@ function genSessionHistory(session: ActiveSession): HistoryRow[] {
   }).reverse()  // most recent first
 }
 
-const TIME_RANGE_OPTS = ['5m', '10m', '30m', '1h', '3h']
-
 function PidHistoryView({ session, onBack }: { session: ActiveSession; onBack: () => void }) {
   const [historyFilters, setHistoryFilters] = useState<FilterChip[]>([])
   const [hFilterMode, setHFilterMode]       = useState<'OR'|'AND'>('OR')
-  const [timeRange, setTimeRange]           = useState('10m')
+  const [timeRange, setTimeRange]           = useState<TimeRange>(TIME_RANGES[1])
   const history = useMemo(() => genSessionHistory(session), [session.pid])
 
   const applyFilter = (r: HistoryRow, f: FilterChip) => {
@@ -2314,17 +2753,6 @@ function PidHistoryView({ session, onBack }: { session: ActiveSession; onBack: (
     : hFilterMode === 'OR'
       ? history.filter(r => historyFilters.some(f  => applyFilter(r, f)))
       : history.filter(r => historyFilters.every(f => applyFilter(r, f)))
-
-  // time range display
-  const msMap: Record<string, number> = { '5m': 5, '10m': 10, '30m': 30, '1h': 60, '3h': 180 }
-  const rangeEnd   = new Date()
-  const rangeStart = new Date(rangeEnd.getTime() - (msMap[timeRange] ?? 10) * 60_000)
-  const fmtShort = (d: Date) => {
-    const yy = String(d.getFullYear()).slice(2)
-    const mm = String(d.getMonth()+1).padStart(2,'0')
-    const dd = String(d.getDate()).padStart(2,'0')
-    return `${yy}.${mm}.${dd} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
-  }
 
   const histCols = [
     { key: 'time',          label: 'Time',              w: 148 },
@@ -2374,18 +2802,7 @@ function PidHistoryView({ session, onBack }: { session: ActiveSession; onBack: (
 
         {/* 오른쪽: 시간 범위 + 네비 + 버튼들 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* time range selector */}
-          <select
-            value={timeRange}
-            onChange={e => setTimeRange(e.target.value)}
-            style={{ fontSize: 11, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 3, background: '#fff', color: '#374151', cursor: 'pointer' }}
-          >
-            {TIME_RANGE_OPTS.map(r => <option key={r}>{r}</option>)}
-          </select>
-          {/* time range display */}
-          <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>
-            {fmtShort(rangeStart)} ~ {fmtShort(rangeEnd)}
-          </span>
+          <TimeRangePicker selected={timeRange} onSelect={setTimeRange} />
           {/* nav arrows */}
           {(['◀◀','◀','▶','▶▶','↺'] as const).map(arrow => (
             <button key={arrow} style={navBtn}>{arrow}</button>
