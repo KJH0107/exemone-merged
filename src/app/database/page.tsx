@@ -372,6 +372,52 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
 }
 
 // ── Alarm Detail View ─────────────────────────────────────────────
+interface AlarmInfo {
+  type: string
+  ruleBase: string
+  checkInterval: number
+  checkRepeat: number
+  maxOccurrence: string
+  controlTime: string
+  schedule: string[]
+  timezone: string
+  timeRange: string
+  statName: string
+  condition: string
+  thresholdWarning: number
+  thresholdCritical: number
+  unit: string
+  tags: string[]
+  targets: string[]
+}
+
+function getAlarmInfo(alarm: AlarmRule): AlarmInfo {
+  const base: AlarmInfo = {
+    type: alarm.ruleType === 'Metric' ? '메트릭' : '시스템',
+    ruleBase: 'Check by Target',
+    checkInterval: 300,
+    checkRepeat: 1,
+    maxOccurrence: '∞',
+    controlTime: '설정 안 함',
+    schedule: ['월요일','화요일','수요일','목요일','금요일','토요일','일요일'],
+    timezone: '(UTC+09:00) 서울, 오사카, 삿...',
+    timeRange: '00:00 ~ 23:59',
+    statName: alarm.alertStatName || '-',
+    condition: '>',
+    thresholdWarning: alarm.threshold?.warning ?? 0,
+    thresholdCritical: alarm.threshold?.critical ?? 0,
+    unit: '%',
+    tags: ['database:*'],
+    targets: [
+      'database:exemone_metadata','database:cubrid_131','database:MF0251105',
+      'database:oracle19','database:mxg_134','database:postgres',
+      'database:shinhan_134','database:exemone','database:cubrid_134',
+      'database:mxg_131','database:single_test','database:SSH_TEST2','database:SSH_TEST',
+    ],
+  }
+  return base
+}
+
 interface AlarmRealtimeRow {
   id: number
   lastAlert: 'Normal' | 'Warning' | 'Critical'
@@ -406,6 +452,154 @@ const ALARM_DETAIL_FILTER_FIELDS = [
   { id:'target',        label:'Target',          operators:['contains','='] },
   { id:'lastAlert',     label:'Last Alert',      operators:['='], values:['Normal','Warning','Critical'] },
 ]
+
+function AlarmInfoTab({ alarm }: { alarm: AlarmRule }) {
+  const info = getAlarmInfo(alarm)
+  const [notiTab, setNotiTab] = useState<string>('이메일')
+
+  const notiTabs = [
+    { id:'이메일',   icon:'✉' },
+    { id:'슬랙',     icon:'✛' },
+    { id:'텔레그램', icon:'✈' },
+    { id:'문자',     icon:'💬' },
+    { id:'웹훅',     icon:'⚇' },
+    { id:'온사이트', icon:'🔔' },
+    { id:'카카오톡', icon:'💛' },
+  ]
+
+  const sectionHd: React.CSSProperties = {
+    fontSize:13, fontWeight:600, color:'#374151',
+    background:'#f3f4f6', padding:'8px 14px',
+    borderBottom:'1px solid #e5e7eb', borderTop:'1px solid #e5e7eb',
+  }
+  const infoRow: React.CSSProperties = {
+    display:'flex', alignItems:'flex-start', gap:12,
+    padding:'10px 14px', borderBottom:'1px dashed #e5e7eb', fontSize:12,
+  }
+  const labelS: React.CSSProperties = { color:'#6b7280', minWidth:100, flexShrink:0 }
+  const chip: React.CSSProperties = {
+    display:'inline-block', padding:'2px 8px', borderRadius:3,
+    background:'#f3f4f6', border:'1px solid #e5e7eb', fontSize:11, color:'#374151', marginRight:4, marginBottom:4,
+  }
+
+  return (
+    <div style={{ flex:1, overflowY:'auto', paddingTop:10 }}>
+      {/* ── 룰 데이터 섹션 ── */}
+      <div style={{ border:'1px solid #e5e7eb', borderRadius:4, marginBottom:16, overflow:'hidden' }}>
+        <div style={sectionHd}>룰 데이터</div>
+
+        {/* 메타 정보 */}
+        <div style={{ padding:'10px 14px', borderBottom:'1px solid #e5e7eb', fontSize:12, color:'#374151', display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <span>타입 <strong>{info.type}</strong></span>
+            <span style={{ color:'#d1d5db' }}>|</span>
+            <span>룰 기준
+              <span style={{ marginLeft:8, padding:'2px 10px', border:'1px solid #d1d5db', borderRadius:3, background:'#fff', fontSize:11, cursor:'default' }}>{info.ruleBase}</span>
+            </span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, color:'#374151' }}>
+            <span>체크 주기 <strong>{info.checkInterval}</strong></span>
+            <span style={{ color:'#d1d5db' }}>|</span>
+            <span>체크 반복 횟수 <strong>{info.checkRepeat}</strong></span>
+            <span style={{ color:'#d1d5db' }}>|</span>
+            <span>최대 발생 건수 <strong>{info.maxOccurrence}</strong></span>
+            <span style={{ color:'#d1d5db' }}>|</span>
+            <span>알람 제어 시간 <strong>{info.controlTime}</strong></span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, color:'#374151' }}>
+            <span>알림 스케줄</span>
+            {info.schedule.map(d => <span key={d} style={{ color:'#374151' }}>{d}</span>)}
+            <span style={{ color:'#d1d5db', margin:'0 4px' }}>|</span>
+            <span>시간</span>
+            <span style={{ color:'#6b7280' }}>{info.timezone}</span>
+            <span style={{ color:'#374151' }}>{info.timeRange}</span>
+          </div>
+        </div>
+
+        {/* 알람 지표 이름 */}
+        <div style={infoRow}>
+          <span style={labelS}>알람 지표 이름</span>
+          <span style={{ color:'#374151' }}>{info.statName}</span>
+        </div>
+
+        {/* 실시간 */}
+        <div style={infoRow}>
+          <span style={labelS}>실시간</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ color:'#374151' }}>{info.condition}</span>
+            <span style={{ padding:'2px 8px', borderRadius:3, background:'#f59e0b', color:'#fff', fontSize:11, fontWeight:600 }}>Warning</span>
+            <span style={{ color:'#374151' }}>{info.thresholdWarning}</span>
+            <span style={{ padding:'2px 8px', borderRadius:3, background:'#ef4444', color:'#fff', fontSize:11, fontWeight:600 }}>Critical</span>
+            <span style={{ color:'#374151' }}>{info.thresholdCritical}</span>
+            <span style={{ color:'#374151' }}>{info.unit}</span>
+          </div>
+        </div>
+
+        {/* 태그 */}
+        <div style={infoRow}>
+          <span style={labelS}>태그</span>
+          <div>
+            {info.tags.map(t => <span key={t} style={chip}>{t}</span>)}
+          </div>
+        </div>
+
+        {/* 대상 */}
+        <div style={{ ...infoRow, borderBottom:'none' }}>
+          <span style={labelS}>대상</span>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+            {info.targets.map(t => <span key={t} style={chip}>{t}</span>)}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 알림 섹션 ── */}
+      <div style={{ border:'1px solid #e5e7eb', borderRadius:4, overflow:'hidden' }}>
+        <div style={sectionHd}>알림</div>
+
+        {/* 알림 서브탭 */}
+        <div style={{ display:'flex', borderBottom:'1px solid #e5e7eb', background:'#fff' }}>
+          {notiTabs.map(t => (
+            <button key={t.id} onClick={() => setNotiTab(t.id)}
+              style={{ padding:'8px 14px', fontSize:12, border:'none', borderBottom: notiTab === t.id ? '2px solid #3b82f6' : '2px solid transparent', background:'transparent', color: notiTab === t.id ? '#3b82f6' : '#6b7280', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}
+            >
+              <span>{t.icon}</span>{t.id}
+            </button>
+          ))}
+        </div>
+
+        {/* 이메일 탭 내용 */}
+        {notiTab === '이메일' && (
+          <div style={{ padding:'12px 14px', fontSize:12, display:'flex', flexDirection:'column', gap:10 }}>
+            <div>
+              <span style={{ color:'#6b7280' }}>전송 서버 유형</span>
+              <span style={{ marginLeft:8, color:'#374151' }}>(전송 서버)</span>
+            </div>
+            <div>
+              <span style={{ color:'#6b7280' }}>수신 사용자</span>
+              <span style={{ marginLeft:8, color:'#374151' }}>(0)</span>
+            </div>
+            <div style={{ display:'flex', gap:12 }}>
+              <span style={{ color:'#6b7280', minWidth:40 }}>내용</span>
+              <div style={{ display:'flex', flexDirection:'column', gap:2, color:'#374151' }}>
+                <span>$alert$trigger_time$</span>
+                <span>$alert$rule_name$</span>
+                <span>$alert$targets$</span>
+                <span>$alert$alert_name$ : $alert$level$ ($alert$value$)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 나머지 알림 탭 placeholder */}
+        {notiTab !== '이메일' && (
+          <div style={{ padding:'30px 0', textAlign:'center', color:'#9ca3af', fontSize:12 }}>
+            {notiTab} 알림 설정 없음
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function AlarmDetailView({ alarm, onBack }: { alarm: AlarmRule; onBack: () => void }) {
   const [detailTab, setDetailTab] = useState<'정보' | '실시간' | '과거 이력'>('실시간')
@@ -485,11 +679,7 @@ function AlarmDetailView({ alarm, onBack }: { alarm: AlarmRule; onBack: () => vo
       </div>
 
       {/* ── 정보 탭 ── */}
-      {detailTab === '정보' && (
-        <div style={{ textAlign:'center', paddingTop:60, color:'var(--text-muted)', fontSize:13 }}>
-          정보 탭 — 다음 Sprint에서 구현 예정
-        </div>
-      )}
+      {detailTab === '정보' && <AlarmInfoTab alarm={alarm} />}
 
       {/* ── 실시간 탭 ── */}
       {detailTab === '실시간' && (
