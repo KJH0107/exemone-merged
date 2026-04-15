@@ -3,6 +3,17 @@
 
 export type PageKey = 'home' | 'database' | 'database-detail' | 'performance' | 'alert'
 
+export interface FeatureChallenge {
+  prompt: string      // "직접 해보세요!" 제목
+  action: string      // 구체적인 행동 지시 (1~2줄)
+  success: string     // 완료 시 표시할 메시지
+  quiz?: {            // 선택: 객관식 퀴즈
+    question: string
+    options: string[]
+    answer: number    // options 인덱스
+  }
+}
+
 export interface FeatureItem {
   id: string
   label: string
@@ -12,6 +23,7 @@ export interface FeatureItem {
   description: string     // 상세 설명
   tip?: string            // 사용 팁
   steps?: string[]        // 사용 순서 (선택)
+  challenge?: FeatureChallenge  // 인터랙티브 챌린지
   relatedFeatures?: Array<{
     id: string            // 연관 feature ID (같은 pageFeatures 내)
     label: string         // 표시 이름
@@ -111,6 +123,21 @@ const databaseFeatures: PageFeatures = {
       summary: 'Instance의 상태별 개수를 보여줍니다.',
       description: '전체 / Active / Warning / Critical / No Signal 상태별 인스턴스 수를 카드로 표시합니다. 카드 클릭 시 해당 상태의 인스턴스만 필터링하여 Instance List에 표시됩니다.',
       tip: '카드 숫자를 클릭하면 해당 상태 인스턴스만 즉시 필터링됩니다.',
+      challenge: {
+        prompt: 'Critical 카드를 클릭해보세요',
+        action: '상단 Summary Card 중 빨간색 Critical 카드를 직접 클릭해보세요. 아래 목록이 어떻게 바뀌나요?',
+        success: '정확합니다! Critical 상태 인스턴스만 필터링되었습니다. 이렇게 카드 하나로 즉각 범위를 좁힐 수 있습니다.',
+        quiz: {
+          question: 'Critical 상태 인스턴스를 클릭하면 어떤 일이 일어나나요?',
+          options: [
+            '인스턴스가 재시작됩니다',
+            'Critical 인스턴스만 목록에 필터링됩니다',
+            '알람이 해제됩니다',
+            '상세 설정 화면이 열립니다',
+          ],
+          answer: 1,
+        },
+      },
       relatedFeatures: [
         { id: 'instance-list', label: 'Instance List', reason: '카드 클릭 시 해당 상태가 목록에서 바로 필터링됩니다.' },
         { id: 'filters', label: 'Filters', reason: 'DB 타입·그룹 조합 필터로 더 정밀하게 범위를 좁힐 수 있습니다.' },
@@ -124,6 +151,21 @@ const databaseFeatures: PageFeatures = {
       summary: 'Instance 화면의 Filters 항목을 선택합니다.',
       description: 'DB 타입(PostgreSQL, MySQL, Oracle 등)과 운영 그룹별로 인스턴스를 필터링할 수 있습니다. 복수 선택이 가능하며 조합 필터로 원하는 인스턴스 목록을 빠르게 조회할 수 있습니다.',
       tip: '멀티 선택으로 여러 DB 타입을 동시에 조회할 수 있습니다.',
+      challenge: {
+        prompt: '왼쪽 Filter에서 PostgreSQL만 선택해보세요',
+        action: '화면 왼쪽 Filter 패널에서 DB 타입을 PostgreSQL 하나만 선택해보세요. 헥사 맵과 목록이 함께 바뀌는지 확인하세요.',
+        success: '잘 하셨습니다! 필터를 적용하면 맵과 목록이 동시에 좁혀지는 것을 확인하셨나요?',
+        quiz: {
+          question: 'Filters에서 여러 DB 타입을 동시에 선택할 수 있나요?',
+          options: [
+            '아니요, 하나만 선택 가능합니다',
+            '네, 멀티 선택이 가능합니다',
+            'PostgreSQL만 멀티 선택 가능합니다',
+            '그룹 필터만 멀티 선택됩니다',
+          ],
+          answer: 1,
+        },
+      },
       relatedFeatures: [
         { id: 'instance-map', label: 'Instance Map', reason: '필터 적용 결과가 헥사 맵에도 즉시 반영됩니다.' },
         { id: 'instance-list', label: 'Instance List', reason: '필터링된 인스턴스가 목록에 표시됩니다.' },
@@ -142,6 +184,21 @@ const databaseFeatures: PageFeatures = {
         '빨간 헥사곤 클릭 → Critical 인스턴스 상세 진입',
         '상세 화면에서 CPU / 세션 추이 확인',
       ],
+      challenge: {
+        prompt: '헥사 맵에서 인스턴스를 찾아보세요',
+        action: '헥사곤 위에 마우스를 올려보세요. CPU / Memory 수치가 툴팁으로 보이나요? 빨간 헥사곤이 있다면 클릭해보세요.',
+        success: '헥사 맵을 사용해보셨군요! 색상만으로 전체 상태를 순식간에 파악할 수 있습니다.',
+        quiz: {
+          question: '헥사 맵에서 빨간색 헥사곤이 의미하는 상태는?',
+          options: [
+            'Active — 정상 운영 중',
+            'Warning — 주의 필요',
+            'Critical — 즉각 대응 필요',
+            'No Signal — 연결 끊김',
+          ],
+          answer: 2,
+        },
+      },
       relatedFeatures: [
         { id: 'instance-list', label: 'Instance List', reason: '헥사곤 클릭 시 동일한 인스턴스의 상세 목록 정보를 테이블에서 확인할 수 있습니다.' },
       ],
@@ -159,6 +216,21 @@ const databaseFeatures: PageFeatures = {
         '인스턴스명 클릭 → 상세 모니터링 화면',
         'CPU / Memory 수치, 세션, 상태 집중 확인',
       ],
+      challenge: {
+        prompt: 'CPU 높은 인스턴스를 찾아보세요',
+        action: '목록 상단의 "CPU Usage" 컬럼 헤더를 클릭해 내림차순 정렬해보세요. 가장 부하가 높은 인스턴스가 맨 위로 오나요?',
+        success: '정렬 기능을 사용하셨군요! 실제 장애 대응 시 이 방법으로 문제 인스턴스를 가장 먼저 발견합니다.',
+        quiz: {
+          question: '장애 상황에서 가장 빠르게 문제 인스턴스를 찾는 방법은?',
+          options: [
+            '목록을 위에서 아래로 순서대로 읽는다',
+            'CPU Usage 컬럼을 내림차순 정렬한다',
+            '인스턴스명을 알파벳순으로 정렬한다',
+            'No Signal 카드를 먼저 확인한다',
+          ],
+          answer: 1,
+        },
+      },
       relatedFeatures: [
         { id: 'instance-map', label: 'Instance Map', reason: '목록과 맵은 동일 데이터를 다른 시각으로 보여줍니다.' },
       ],
@@ -327,6 +399,21 @@ const databaseDetailFeatures: PageFeatures = {
         'Elapsed Time이 긴 세션 식별',
         'PID 클릭 → Session Detail Slide에서 SQL 이력 분석',
       ],
+      challenge: {
+        prompt: 'PID를 클릭해 세션 이력을 확인해보세요',
+        action: '아래 세션 목록에서 Elapsed Time이 가장 긴 세션의 PID를 클릭해보세요. Session Information 화면이 열리나요?',
+        success: '완료! Session Detail에서 해당 세션이 수행한 SQL 이력 전체를 추적할 수 있습니다.',
+        quiz: {
+          question: 'Wait Event가 "Lock"인 세션을 발견했을 때 다음 행동은?',
+          options: [
+            '세션을 즉시 Kill한다',
+            'Lock 정보 탭에서 Blocker 세션을 확인한다',
+            '인스턴스를 재시작한다',
+            '알람 탭을 먼저 확인한다',
+          ],
+          answer: 1,
+        },
+      },
       relatedFeatures: [
         { id: 'drawer-sql-list', label: 'SQL 목록 탭', reason: '세션에서 수행 중인 SQL의 전체 성능 통계를 분석합니다.' },
         { id: 'drawer-lock', label: 'Lock 정보 탭', reason: 'Wait Event가 Lock인 세션이 있다면 Lock 관계도를 확인합니다.' },

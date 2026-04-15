@@ -1,7 +1,8 @@
 'use client'
+import React from 'react'
 import { usePathname } from 'next/navigation'
 import { useGuideStore } from '@/stores/guideStore'
-import { PAGE_FEATURES, type PageKey } from '@/lib/guide/features'
+import { PAGE_FEATURES, type PageKey, type FeatureChallenge } from '@/lib/guide/features'
 import type { PageFeatures, FeatureItem } from '@/lib/guide/features'
 
 const detailFeatures = PAGE_FEATURES['database-detail']
@@ -258,6 +259,134 @@ function ListView({ pageFeatures, theme, onSelect, onClose }: {
 // ═══════════════════════════════════════════════════════════════
 // 상세 뷰
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// 챌린지 카드
+// ═══════════════════════════════════════════════════════════════
+function ChallengeCard({ featureId, challenge }: { featureId: string; challenge: FeatureChallenge }) {
+  const { completedChallenges, completeChallenge } = useGuideStore()
+  const done = completedChallenges.includes(featureId)
+  const [quizSelected, setQuizSelected] = React.useState<number | null>(null)
+  const quizAnswered = quizSelected !== null
+  const quizCorrect = quizSelected === challenge.quiz?.answer
+
+  return (
+    <div style={{
+      border: done ? '2px solid #10b981' : '2px dashed #f59e0b',
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginTop: 4,
+    }}>
+      {/* 헤더 */}
+      <div style={{
+        background: done ? '#ecfdf5' : '#fffbeb',
+        padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: 8,
+        borderBottom: done ? '1px solid #a7f3d0' : '1px solid #fde68a',
+      }}>
+        <span style={{ fontSize: 18 }}>{done ? '✅' : '🎯'}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: done ? '#065f46' : '#92400e' }}>
+            {done ? '완료!' : '직접 해보세요'}
+          </div>
+          <div style={{ fontSize: 11, color: done ? '#059669' : '#b45309', marginTop: 1 }}>
+            {done ? '이 기능을 직접 체험했습니다' : challenge.prompt}
+          </div>
+        </div>
+      </div>
+
+      {!done && (
+        <div style={{ padding: '12px 14px', background: '#fff' }}>
+          {/* 행동 지시 */}
+          <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.75, margin: '0 0 12px', wordBreak: 'keep-all' }}>
+            {challenge.action}
+          </p>
+
+          {/* 퀴즈 */}
+          {challenge.quiz && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                💬 {challenge.quiz.question}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {challenge.quiz.options.map((opt, i) => {
+                  const isSelected = quizSelected === i
+                  const isCorrect  = i === challenge.quiz!.answer
+                  const bg = !quizAnswered
+                    ? isSelected ? '#eff6ff' : '#f9fafb'
+                    : isCorrect ? '#ecfdf5' : isSelected ? '#fef2f2' : '#f9fafb'
+                  const border = !quizAnswered
+                    ? isSelected ? '#3b82f6' : '#e5e7eb'
+                    : isCorrect ? '#10b981' : isSelected ? '#ef4444' : '#e5e7eb'
+                  const color = !quizAnswered ? '#374151'
+                    : isCorrect ? '#065f46' : isSelected ? '#991b1b' : '#9ca3af'
+
+                  return (
+                    <button
+                      key={i}
+                      disabled={quizAnswered}
+                      onClick={() => setQuizSelected(i)}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '8px 12px',
+                        borderRadius: 7, border: `1.5px solid ${border}`,
+                        background: bg, color, fontSize: 12,
+                        cursor: quizAnswered ? 'default' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        transition: 'all .12s',
+                        fontWeight: quizAnswered && isCorrect ? 700 : 400,
+                      }}
+                    >
+                      <span style={{
+                        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                        background: border, color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 700,
+                      }}>
+                        {quizAnswered ? (isCorrect ? '✓' : isSelected ? '✗' : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}
+                      </span>
+                      {opt}
+                    </button>
+                  )
+                })}
+              </div>
+              {quizAnswered && (
+                <div style={{
+                  marginTop: 8, padding: '8px 12px', borderRadius: 7,
+                  background: quizCorrect ? '#ecfdf5' : '#fef2f2',
+                  fontSize: 12, color: quizCorrect ? '#065f46' : '#991b1b',
+                  fontWeight: 600, lineHeight: 1.5,
+                }}>
+                  {quizCorrect ? '✅ 정답입니다!' : `❌ 정답은 "${challenge.quiz!.options[challenge.quiz!.answer]}"입니다.`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 수동 완료 버튼 */}
+          <button
+            onClick={() => completeChallenge(featureId)}
+            style={{
+              width: '100%', padding: '9px', borderRadius: 8,
+              background: '#f59e0b', border: 'none', color: '#fff',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              transition: 'background .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#d97706' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#f59e0b' }}
+          >
+            해봤어요! ✓
+          </button>
+        </div>
+      )}
+
+      {done && (
+        <div style={{ padding: '10px 14px', background: '#ecfdf5', fontSize: 13, color: '#065f46', lineHeight: 1.75, wordBreak: 'keep-all' }}>
+          {challenge.success}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose, onStartDetailFlow }: {
   feature: FeatureItem
   pageFeatures: PageFeatures
@@ -419,6 +548,14 @@ function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose, o
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 인터랙티브 챌린지 */}
+        {feature.challenge && (
+          <div style={{ marginBottom: pageFeatures.key === 'database' && feature.id === 'instance-list' ? 22 : 0 }}>
+            <SectionLabel>인터랙티브 챌린지</SectionLabel>
+            <ChallengeCard featureId={feature.id} challenge={feature.challenge} />
           </div>
         )}
 

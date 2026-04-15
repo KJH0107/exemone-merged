@@ -13,7 +13,7 @@ interface Props {
  * 가이드 ON 상태에서 클릭하면 해당 기능 가이드가 자동으로 열립니다.
  */
 export default function GuideHighlight({ id, children, style }: Props) {
-  const { isOpen, activeFeature, setFeature, pendingDetailFeature } = useGuideStore()
+  const { isOpen, activeFeature, setFeature, pendingDetailFeature, completeChallenge } = useGuideStore()
   const isActive = isOpen && activeFeature === id
   // instance-list에 장애 분석 플로우 대기 중이면 teal 색상으로 강조
   const isPending = id === 'instance-list' && !!pendingDetailFeature
@@ -22,8 +22,13 @@ export default function GuideHighlight({ id, children, style }: Props) {
 
   return (
     <div
-      // onClickCapture: 내부 버튼/인풋 등 자식 이벤트를 막지 않으면서 가이드 feature 선택
-      onClickCapture={() => { if (isOpen) setFeature(id) }}
+      onClickCapture={() => {
+        if (isOpen) {
+          setFeature(id)
+          // 이미 이 feature가 활성화된 상태에서 다시 클릭 = 실제로 해봤다는 신호 → 챌린지 완료
+          if (activeFeature === id) completeChallenge(id)
+        }
+      }}
       style={{
         ...style,
         position: 'relative',
