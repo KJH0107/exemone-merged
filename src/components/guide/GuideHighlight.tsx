@@ -13,8 +13,10 @@ interface Props {
  * 가이드 ON 상태에서 클릭하면 해당 기능 가이드가 자동으로 열립니다.
  */
 export default function GuideHighlight({ id, children, style }: Props) {
-  const { isOpen, activeFeature, setFeature } = useGuideStore()
+  const { isOpen, activeFeature, setFeature, pendingDetailFeature } = useGuideStore()
   const isActive = isOpen && activeFeature === id
+  // instance-list에 장애 분석 플로우 대기 중이면 teal 색상으로 강조
+  const isPending = id === 'instance-list' && !!pendingDetailFeature
 
   if (!isOpen) return <div style={style}>{children}</div>
 
@@ -26,11 +28,12 @@ export default function GuideHighlight({ id, children, style }: Props) {
         ...style,
         position: 'relative',
         zIndex: isActive ? 20 : undefined,
-        // box-shadow 사용: outline과 달리 overflow:hidden에 잘리지 않음
-        boxShadow: isActive
-          ? '0 0 0 3px #3b82f6, 0 0 0 6px rgba(59,130,246,.2)'
+        boxShadow: isPending
+          ? '0 0 0 3px #0d9488, 0 0 0 6px rgba(13,148,136,.25)'  // teal — 장애 분석 대기
+          : isActive
+          ? '0 0 0 3px #3b82f6, 0 0 0 6px rgba(59,130,246,.2)'   // blue — 가이드 선택됨
           : isOpen
-          ? '0 0 0 1.5px rgba(59,130,246,.25)'   // 가이드 ON + 비활성: 클릭 가능 암시
+          ? '0 0 0 1.5px rgba(59,130,246,.25)'                    // 가이드 ON + 비활성
           : 'none',
         borderRadius: 8,
         transition: 'box-shadow .2s',
