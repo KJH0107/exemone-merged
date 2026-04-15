@@ -2225,9 +2225,18 @@ function LockTreeTab({ instance }: { instance: DbInstance }) {
   const [selected, setSelected]     = useState<Set<number>>(new Set())
   const [killConfirm, setKillConfirm] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => fmtDate(new Date()))
+  const [selectedSqlRow, setSelectedSqlRow] = useState<SqlRow | null>(null)
+
+  if (selectedSqlRow) {
+    return <SqlDetailView row={selectedSqlRow} onBack={() => setSelectedSqlRow(null)} />
+  }
 
   if (pidDetail) {
-    return <PidHistoryView session={pidDetail} onBack={() => setPidDetail(null)} />
+    return <PidHistoryView
+      session={pidDetail}
+      onBack={() => setPidDetail(null)}
+      onSqlSelect={(row) => { setPidDetail(null); setSelectedSqlRow(row) }}
+    />
   }
 
   const lockNodeToSession = (node: LockNode): ActiveSession => ({
@@ -2758,7 +2767,11 @@ function ActiveSessionTab() {
   const [fullText, setFullText]       = useState<string | null>(null)
 
   if (pidDetail) {
-    return <PidHistoryView session={pidDetail} onBack={() => setPidDetail(null)} />
+    return <PidHistoryView
+      session={pidDetail}
+      onBack={() => setPidDetail(null)}
+      onSqlSelect={(row) => { setPidDetail(null); setSelectedSqlRow(row) }}
+    />
   }
 
   if (selectedSqlRow) {
@@ -3044,11 +3057,27 @@ function genSessionHistory(session: ActiveSession): HistoryRow[] {
   }).reverse()  // most recent first
 }
 
-function PidHistoryView({ session, onBack }: { session: ActiveSession; onBack: () => void }) {
+function PidHistoryView({ session, onBack, onSqlSelect }: {
+  session: ActiveSession
+  onBack: () => void
+  onSqlSelect?: (row: SqlRow) => void
+}) {
   const [historyFilters, setHistoryFilters] = useState<FilterChip[]>([])
   const [hFilterMode, setHFilterMode]       = useState<'OR'|'AND'>('OR')
   const [timeRange, setTimeRange]           = useState<TimeRange>(TIME_RANGES[1])
   const history = useMemo(() => genSessionHistory(session), [session.pid])
+
+  const historyToSqlRow = (r: HistoryRow): SqlRow => {
+    const match = SQL_MOCK.find(s => s.sqlId.startsWith(r.sqlId.replace('...', '').slice(0, 10)))
+    if (match) return match
+    return {
+      userName: session.userName, sqlId: r.sqlId, queryId: r.queryId, sqlText: r.sqlText,
+      calls: 0, totalTime: 0, sharedBlocksHit: 0, localBlocksHit: 0,
+      sharedBlocksRead: 0, localBlocksRead: 0, tempBlocks: 0,
+      maxExecution: 0, minExecution: 0, databaseName: session.databaseName,
+      tempBlocksRead: 0, sharedBlocksWritten: 0, localBlocksWritten: 0,
+    }
+  }
 
   const applyFilter = (r: HistoryRow, f: FilterChip) => {
     const val  = String((r as any)[f.fieldKey] ?? '').toLowerCase()
@@ -3194,14 +3223,19 @@ function PidHistoryView({ session, onBack }: { session: ActiveSession; onBack: (
                     const isLink = HIST_LINK.has(c.key)
                     const val    = String(r[c.key as keyof HistoryRow])
                     return (
-                      <td key={c.key} style={{
-                        padding: '6px 8px', fontSize: 11,
-                        color: isLink ? '#006DFF' : c.key === 'state' ? '#059669' : '#111827',
-                        borderBottom: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: c.w, cursor: isLink ? 'pointer' : 'default',
-                        fontWeight: c.key === 'time' ? 500 : 400,
-                      }}>
+                      <td
+                        key={c.key}
+                        onClick={isLink && onSqlSelect ? () => onSqlSelect(historyToSqlRow(r)) : undefined}
+                        style={{
+                          padding: '6px 8px', fontSize: 11,
+                          color: isLink ? '#006DFF' : c.key === 'state' ? '#059669' : '#111827',
+                          borderBottom: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: c.w, cursor: isLink ? 'pointer' : 'default',
+                          fontWeight: c.key === 'time' ? 500 : 400,
+                          textDecoration: isLink ? 'underline' : 'none',
+                        }}
+                      >
                         {val}
                       </td>
                     )
