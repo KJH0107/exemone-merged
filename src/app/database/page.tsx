@@ -152,55 +152,50 @@ export default function DatabasePage() {
               />
             </GuideHighlight>
 
-            {/* Instance Table */}
-            {pendingDetailFeature && (
-              <div style={{
-                position: 'relative',
-                background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
-                borderRadius: 10,
-                padding: '12px 16px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                boxShadow: '0 4px 16px rgba(13,148,136,.35)',
-                marginBottom: -4,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 22, flexShrink: 0 }}>👇</span>
+            {/* Instance Table — pending 시 relative 컨테이너로 overlay 수용 */}
+            <div style={{ position: 'relative', flex: 1 }}>
+              <GuideHighlight id="instance-list">
+                <InstanceTable
+                  instances={filtered}
+                  onSelect={setSelectedInstance}
+                  selectedId={selectedInstance?.id}
+                />
+              </GuideHighlight>
+
+              {/* 장애 분석 플로팅 힌트 — 테이블 위 overlay */}
+              {pendingDetailFeature && (
+                <div style={{
+                  position: 'absolute', top: 12, left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 50,
+                  background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  boxShadow: '0 8px 28px rgba(13,148,136,.45)',
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'auto',
+                }}>
+                  <span style={{ fontSize: 20 }}>👇</span>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 2 }}>
-                      인스턴스를 클릭하면 장애 분석 가이드가 시작됩니다
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 1 }}>
+                      분석할 인스턴스를 클릭하세요
                     </div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', lineHeight: 1.5 }}>
-                      아래 목록에서 분석할 인스턴스 행을 클릭하세요 → 액티브 세션 탭이 자동으로 열립니다
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.8)' }}>
+                      클릭하면 액티브 세션 탭이 자동으로 열립니다
                     </div>
                   </div>
+                  <button
+                    onClick={() => setPendingDetailFeature(null)}
+                    style={{
+                      background: 'rgba(255,255,255,.2)', border: '1px solid rgba(255,255,255,.35)',
+                      color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                      padding: '4px 10px', borderRadius: 6, flexShrink: 0,
+                    }}
+                  >취소</button>
                 </div>
-                <button
-                  onClick={() => setPendingDetailFeature(null)}
-                  style={{
-                    background: 'rgba(255,255,255,.2)', border: '1px solid rgba(255,255,255,.3)',
-                    color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    padding: '5px 12px', borderRadius: 6, flexShrink: 0, whiteSpace: 'nowrap',
-                  }}
-                >
-                  취소
-                </button>
-                {/* 아래 화살표 꼬리 */}
-                <div style={{
-                  position: 'absolute', bottom: -8, left: 28,
-                  width: 0, height: 0,
-                  borderLeft: '8px solid transparent',
-                  borderRight: '8px solid transparent',
-                  borderTop: '8px solid #0f766e',
-                }} />
-              </div>
-            )}
-            <GuideHighlight id="instance-list">
-              <InstanceTable
-                instances={filtered}
-                onSelect={setSelectedInstance}
-                selectedId={selectedInstance?.id}
-              />
-            </GuideHighlight>
+              )}
+            </div>
         </div>
       </div>
 
