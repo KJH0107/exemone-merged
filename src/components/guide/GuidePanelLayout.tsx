@@ -16,6 +16,8 @@ function getPageKey(pathname: string): PageKey | null {
   if (pathname.startsWith('/database'))    return 'database'
   if (pathname.startsWith('/performance')) return 'performance'
   if (pathname.startsWith('/alert'))       return 'alert'
+  // file:// 프로토콜에서 pathname이 파일 경로가 될 때 database 기본값 반환
+  if (pathname.includes('.html') || pathname.match(/^\/[A-Z]:/)) return 'database'
   return null
 }
 
