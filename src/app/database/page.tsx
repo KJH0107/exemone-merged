@@ -235,7 +235,7 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
   const [tab, setTab] = useState('정보')
   const [expanded, setExpanded] = useState(false)
   const TABS = ['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록']
-  const { isOpen: guideOpen, activeFeature, openDrawer, closeDrawer, setFeature } = useGuideStore()
+  const { isOpen: guideOpen, activeFeature, openDrawer, closeDrawer, setFeature, pendingDetailFeature, setPendingDetailFeature } = useGuideStore()
 
   // 메트릭 상태 (인스턴스 실제 값 기반)
   const [metric, setMetric]           = useState<DbMetric>(() => genMetric(instance))
@@ -266,8 +266,18 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // 드로어 열릴 때 guideStore에 알림
-  useEffect(() => { openDrawer(TAB_FEATURE_MAP[tab] ?? undefined); return () => closeDrawer() }, [])
+  // 드로어 열릴 때 guideStore에 알림 — pendingDetailFeature가 있으면 해당 탭/가이드로 자동 이동
+  useEffect(() => {
+    if (pendingDetailFeature) {
+      const targetTab = FEATURE_TAB_MAP[pendingDetailFeature]
+      if (targetTab) setTab(targetTab)
+      openDrawer(pendingDetailFeature)
+      setPendingDetailFeature(null)
+    } else {
+      openDrawer(TAB_FEATURE_MAP[tab] ?? undefined)
+    }
+    return () => closeDrawer()
+  }, [])
 
   // 탭 → 가이드 동기화
   const handleTabChange = (newTab: string) => {

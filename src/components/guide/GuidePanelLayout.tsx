@@ -51,7 +51,7 @@ const THEMES = {
 
 export default function GuidePanelLayout() {
   const pathname = usePathname()
-  const { isOpen, activeFeature, isDrawerOpen, close, setFeature } = useGuideStore()
+  const { isOpen, activeFeature, isDrawerOpen, close, setFeature, pendingDetailFeature, setPendingDetailFeature } = useGuideStore()
 
   const pageKey = isDrawerOpen ? 'database-detail' : getPageKey(pathname)
   const pageFeatures = pageKey ? PAGE_FEATURES[pageKey] : null
@@ -92,6 +92,28 @@ export default function GuidePanelLayout() {
           position: 'absolute', top: 0, right: 0, bottom: 0,
         }}>
 
+          {/* pendingDetailFeature 세팅 중 — "인스턴스 클릭하세요" 힌트 배너 */}
+          {pendingDetailFeature && !isDrawerOpen && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
+              background: '#0d9488', color: '#fff',
+              padding: '10px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 16, animation: 'pulse 1.2s infinite', flexShrink: 0 }}>👇</span>
+                <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.5, wordBreak: 'keep-all' }}>
+                  목록에서 인스턴스를 클릭하면 장애 분석 가이드가 시작됩니다
+                </span>
+              </div>
+              <button
+                onClick={() => setPendingDetailFeature(null)}
+                style={{ background: 'rgba(255,255,255,.2)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 13, padding: '3px 8px', borderRadius: 5, flexShrink: 0 }}
+              >취소</button>
+            </div>
+          )}
+
           {pageFeatures ? (
             activeFeature ? (
               <DetailView
@@ -101,6 +123,7 @@ export default function GuidePanelLayout() {
                 onBack={() => setFeature(null)}
                 onSelect={setFeature}
                 onClose={close}
+                onStartDetailFlow={setPendingDetailFeature}
               />
             ) : (
               <ListView
@@ -257,13 +280,14 @@ function ListView({ pageFeatures, theme, onSelect, onClose }: {
 // ═══════════════════════════════════════════════════════════════
 // 상세 뷰
 // ═══════════════════════════════════════════════════════════════
-function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose }: {
+function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose, onStartDetailFlow }: {
   feature: FeatureItem
   pageFeatures: PageFeatures
   theme: Theme
   onBack: () => void
   onSelect: (id: string) => void
   onClose: () => void
+  onStartDetailFlow?: (id: string) => void
 }) {
   const t = THEMES[theme]
   const idx = pageFeatures.features.findIndex(f => f.id === feature.id)
@@ -378,7 +402,7 @@ function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose }:
 
         {/* 연관 기능 — 흐름을 이어가는 하이퍼링크 */}
         {feature.relatedFeatures && feature.relatedFeatures.length > 0 && (
-          <div>
+          <div style={{ marginBottom: pageFeatures.key === 'database' && feature.id === 'instance-list' ? 22 : 0 }}>
             <SectionLabel>이어서 확인하세요</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {feature.relatedFeatures.map(rel => (
@@ -417,6 +441,40 @@ function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose }:
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* instance-list → Instance Detail 장애 분석 플로우 CTA */}
+        {pageFeatures.key === 'database' && feature.id === 'instance-list' && onStartDetailFlow && (
+          <div style={{
+            background: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)',
+            border: '2px solid #0d9488',
+            borderRadius: 12,
+            padding: '16px 16px 14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 18 }}>🔍</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#134e4a' }}>장애 분석 플로우로 이어가기</span>
+            </div>
+            <p style={{ fontSize: 13, color: '#0f766e', lineHeight: 1.75, margin: '0 0 14px', wordBreak: 'keep-all' }}>
+              인스턴스를 클릭하면 슬라이드가 열리면서 <strong>액티브 세션 분석 가이드</strong>로 자동 전환됩니다. 실제 장애 대응 흐름을 가이드와 함께 체험해보세요.
+            </p>
+            <button
+              onClick={() => onStartDetailFlow('drawer-active-session')}
+              style={{
+                width: '100%', padding: '11px 16px',
+                background: '#0d9488', color: '#fff',
+                border: 'none', borderRadius: 9,
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'background .15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#0f766e' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#0d9488' }}
+            >
+              <span>장애 분석 시작</span>
+              <span style={{ fontSize: 16 }}>→</span>
+            </button>
           </div>
         )}
       </div>
