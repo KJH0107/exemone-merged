@@ -51,7 +51,7 @@ const THEMES = {
 
 export default function GuidePanelLayout() {
   const pathname = usePathname()
-  const { isOpen, activeFeature, isDrawerOpen, close, setFeature, pendingDetailFeature, setPendingDetailFeature } = useGuideStore()
+  const { isOpen, activeFeature, isDrawerOpen, close, setFeature } = useGuideStore()
 
   const pageKey = isDrawerOpen ? 'database-detail' : getPageKey(pathname)
   const pageFeatures = pageKey ? PAGE_FEATURES[pageKey] : null
@@ -92,28 +92,6 @@ export default function GuidePanelLayout() {
           position: 'absolute', top: 0, right: 0, bottom: 0,
         }}>
 
-          {/* pendingDetailFeature 세팅 중 — "인스턴스 클릭하세요" 힌트 배너 */}
-          {pendingDetailFeature && !isDrawerOpen && (
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
-              background: '#0d9488', color: '#fff',
-              padding: '10px 16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-              boxShadow: '0 2px 8px rgba(0,0,0,.15)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 16, animation: 'pulse 1.2s infinite', flexShrink: 0 }}>👇</span>
-                <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.5, wordBreak: 'keep-all' }}>
-                  목록에서 인스턴스를 클릭하면 장애 분석 가이드가 시작됩니다
-                </span>
-              </div>
-              <button
-                onClick={() => setPendingDetailFeature(null)}
-                style={{ background: 'rgba(255,255,255,.2)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 13, padding: '3px 8px', borderRadius: 5, flexShrink: 0 }}
-              >취소</button>
-            </div>
-          )}
-
           {pageFeatures ? (
             activeFeature ? (
               <DetailView
@@ -123,7 +101,7 @@ export default function GuidePanelLayout() {
                 onBack={() => setFeature(null)}
                 onSelect={setFeature}
                 onClose={close}
-                onStartDetailFlow={setPendingDetailFeature}
+                onStartDetailFlow={useGuideStore.getState().setPendingDetailFeature}
               />
             ) : (
               <ListView
