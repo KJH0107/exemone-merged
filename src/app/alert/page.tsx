@@ -149,7 +149,7 @@ function RuleModal({
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>알림 채널</label>
             <div style={{ display: 'flex', gap: 16 }}>
-              {[['notifyEmail', 'Email'], ['notifySlack', 'Slack']] as const}.map(([key, label]) => (
+              {([['notifyEmail', 'Email'], ['notifySlack', 'Slack']] as const).map(([key, label]) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
                   <input type="checkbox" checked={!!form[key]} onChange={e => set(key, e.target.checked)} />
                   {label}

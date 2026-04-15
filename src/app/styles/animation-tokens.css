@@ -1,0 +1,36 @@
+:root {
+  /* Animation Duration */
+  --animation-duration-fast: 0.2s;
+  --animation-duration-base: 0.3s;
+  --animation-duration-slow: 0.5s;
+  --animation-duration-ripple: 2s;
+  /* Animation Easing */
+  --animation-easing-ease: ease;
+  --animation-easing-ease-in-out: ease-in-out;
+  --animation-easing-linear: linear;
+  /* Animation Iteration */
+  --animation-iteration-infinite: infinite;
+  --animation-iteration-once: 1;
+  /* Ripple Animation Values */
+  --ripple-critical-size: 12px;
+  --ripple-warning-size: 10px;
+  --ripple-opacity-end: 0;
+}
+
+/* Animation Keyframes */
+@keyframes ripple-box-shadow {
+  0% {
+    box-shadow: 0 4px 16px 0 var(--node-box-shadow-color), 0 0 0 0 var(--node-border-color);
+  }
+  100% {
+    box-shadow: 0 4px 16px 0 var(--node-box-shadow-color), 0 0 0 var(--ripple-critical-size) rgba(0, 0, 0, var(--ripple-opacity-end));
+  }
+}
+@keyframes ripple-box-shadow-small {
+  0% {
+    box-shadow: 0 4px 16px 0 var(--node-box-shadow-color), 0 0 0 0 var(--node-border-color);
+  }
+  100% {
+    box-shadow: 0 4px 16px 0 var(--node-box-shadow-color), 0 0 0 var(--ripple-warning-size) rgba(0, 0, 0, var(--ripple-opacity-end));
+  }
+}

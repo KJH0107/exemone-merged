@@ -2,75 +2,150 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Sidebar (navy) */
-  --gnb-bg:              #172554;
-  --gnb-border:          #2e3b65;
-  --gnb-sub-bg:          #1b306f;
-  --gnb-text-muted:      #a2a8bb;
-  --gnb-divider:         #455176;
-  --gnb-width:           48px;
-  --gnb-width-expanded:  220px;
-  --header-height:       48px;
-
-  /* Layout */
-  --main-bg:             #e3e7ea;
-  --header-bg:           #ffffff;
-  --header-shadow:       0 2px 6px 0 rgba(0,13,29,.15);
-  --card-bg:             #ffffff;
-  --card-shadow:         0 2px 6px 0 rgba(0,13,29,.08);
-
-  /* Text */
-  --text-primary:        #282c32;
-  --text-secondary:      #626872;
-  --text-muted:          #80868f;
-
-  /* Border */
-  --border:              #c9cdd2;
-  --border-light:        #e3e7ea;
-
-  /* Grid */
-  --grid-header-bg:      #edf0f2;
-  --grid-hover-bg:       #edf0f2;
-  --grid-selected-bg:    #dbeafe;
-
-  /* Tabs */
-  --tab-bg:              #edf0f2;
-  --tab-active-bg:       #ffffff;
-  --tab-active-border:   #3b82f6;
-  --tab-text:            #80868f;
-  --tab-active-text:     #282c32;
-
-  /* Status colors */
-  --color-normal:        #10b981;
-  --color-active:        #006DFF;
-  --color-idle:          #9BD9FF;
-  --color-warning:       #f59e0b;
-  --color-critical:      #ef4444;
-  --color-nosignal:      #9fa5ae;
-  --color-blue:          #3b82f6;
-  --color-blue-dark:     #1d4ed8;
-
-  /* Severity badges */
-  --badge-normal-bg:     #d1fae5;
-  --badge-normal-text:   #059669;
-  --badge-warning-bg:    #fef3c7;
-  --badge-warning-text:  #d97706;
-  --badge-critical-bg:   #fee2e2;
-  --badge-critical-text: #dc2626;
+/* ── 1. 폰트 ─────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/Pretendard/Pretendard-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/Pretendard/Pretendard-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/Pretendard/Pretendard-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/Pretendard/Pretendard-Light.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrainsMono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/JetBrainsMono/JetBrainsMono-Regular.woff2') format('woff2');
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── 2. 원본 색상 팔레트 + 레이아웃 변수 (global-variables.css 그대로) ──── */
+@import './styles/global-variables.css';
+
+/* ── 3. 라이트 테마 변수 (theme_light.css 그대로) ──────────────────────── */
+@import './styles/theme_light.css';
+
+/* ── 4. 다크 테마 변수 (theme_dark.css 그대로) ─────────────────────────── */
+@import './styles/theme_dark.css';
+
+/* ── 4b. 타이포그래피 + 애니메이션 토큰 ───────────────────────────────── */
+@import './styles/typography.css';
+@import './styles/typography-v2.css';
+@import './styles/animation-tokens.css';
+
+/* ── 5. 기본 리셋 ────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
 
 body {
-  background: var(--main-bg);
-  color: var(--text-primary);
-  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 13px;
+  background-color: var(--main-bg-color);
+  color: var(--main-font-color);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.5;
+  min-height: 100vh;
 }
 
+ul, ol, dl, dt, dd, li { list-style: none; }
+h1, h2, h3, h4, h5, h6 { font-size: 12px; font-weight: 400; }
+b, strong { font-weight: 700; }
+a { text-decoration: none; font-family: inherit; font-size: inherit; }
+a:hover, a:visited, a:active, a:link { text-decoration: none; border: 0; }
+button, input, canvas { border: 0; font-family: inherit; font-size: inherit; }
+
+/* ── 6. 스크롤바 ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c9cdd2; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9fa5ae; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track-color, transparent); }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color, #c9cdd2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover-color, #9fa5ae); }
+::-webkit-scrollbar-thumb:active { background: var(--scrollbar-thumb-active-color, #80868f); }
+
+/* ── 7. 클론용 유틸리티 변수 (원본에 없는 것만) ────────────────────────── */
+:root {
+  /* GNB 클론 매핑 */
+  --gnb-bg:             #172554;
+  --gnb-border:         #2e3b65;
+  --gnb-sub-bg:         #1b306f;
+  --gnb-text-muted:     #a2a8bb;
+  --gnb-divider:        #455176;
+  --gnb-width:          var(--gnb-menu-width);           /* 60px */
+  --gnb-width-expanded: var(--gnb-menu-width-expanded-base); /* 240px */
+  --header-height:      var(--gnb-header-height);        /* 48px */
+
+  /* 레이아웃 (원본 main-bg-color → 클론 main-bg 매핑) */
+  --main-bg:            var(--main-bg-color);
+  --header-bg:          var(--color-w-gray-00);
+  --header-shadow:      0 2px 6px 0 rgba(0,13,29,.15);
+  --card-bg:            var(--color-w-gray-00);
+  --card-shadow:        0 2px 6px 0 rgba(0,13,29,.08);
+
+  /* 텍스트 (원본 변수 매핑) */
+  --text-primary:       var(--main-font-color);
+  --text-secondary:     var(--color-w-gray-10);
+  --text-muted:         var(--color-w-gray-09);
+
+  /* 보더 */
+  --border:             var(--color-w-gray-05);
+  --border-light:       var(--color-w-gray-03);
+
+  /* 그리드 */
+  --grid-header-bg:     var(--color-w-gray-02);
+  --grid-hover-bg:      var(--color-w-gray-02);
+  --grid-selected-bg:   var(--color-blue-01);
+
+  /* 탭 */
+  --tab-bg:             var(--color-w-gray-02);
+  --tab-active-bg:      var(--color-w-gray-00);
+  --tab-active-border:  var(--color-blue-05);
+  --tab-text:           var(--color-w-gray-09);
+  --tab-active-text:    var(--color-w-gray-12);
+
+  /* 상태 색상 */
+  --color-normal:       var(--color-green-05);
+  --color-active:       #006DFF;
+  --color-idle:         #9BD9FF;
+  --color-warning:      var(--color-yellow-05);
+  --color-critical:     var(--color-red-05);
+  --color-nosignal:     var(--color-w-gray-08);
+  --color-blue:         var(--color-blue-05);
+  --color-blue-dark:    var(--color-blue-07);
+
+  /* 배지 */
+  --badge-normal-bg:    var(--color-green-01);
+  --badge-normal-text:  var(--color-green-06);
+  --badge-warning-bg:   var(--color-yellow-01);
+  --badge-warning-text: var(--color-yellow-06);
+  --badge-critical-bg:  var(--color-red-01);
+  --badge-critical-text:var(--color-red-06);
+
+  /* 폰트 패밀리 */
+  --font-family-base: 'Pretendard';
+  --font-family-code: 'JetBrainsMono';
+}

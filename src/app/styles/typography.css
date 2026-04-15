@@ -1,0 +1,164 @@
+:root {
+  --typography-h-1-size: 26px;
+  --typography-h-1-line: 28px;
+  --typography-h-1-weight: 700;
+  --typography-h-2-size: 17px;
+  --typography-h-2-line: 18px;
+  --typography-h-2-weight: 700;
+  --typography-h-3-size: 17px;
+  --typography-h-3-line: 18px;
+  --typography-h-3-weight: 400;
+  --typography-title-1-size: 15px;
+  --typography-title-1-line: 16px;
+  --typography-title-1-weight: 500;
+  --typography-title-2-size: 14px;
+  --typography-title-2-line: 15px;
+  --typography-title-2-weight: 500;
+  --typography-title-3-size: 13px;
+  --typography-title-3-line: 14px;
+  --typography-title-3-weight: 500;
+  --typography-sub-title-1-size: 13px;
+  --typography-sub-title-1-line: 14px;
+  --typography-sub-title-1-weight: 700;
+  --typography-sub-title-2-size: 12px;
+  --typography-sub-title-2-line: 14px;
+  --typography-sub-title-2-weight: 700;
+  --typography-sub-title-3-size: 11px;
+  --typography-sub-title-3-line: 12px;
+  --typography-sub-title-3-weight: 700;
+  --typography-body-1-size: 13px;
+  --typography-body-1-line: normal;
+  --typography-body-1-weight: 400;
+  --typography-body-2-size: 12px;
+  --typography-body-2-line: normal;
+  --typography-body-2-weight: 400;
+  --typography-body-3-size: 11px;
+  --typography-body-3-line: normal;
+  --typography-body-3-weight: 400;
+  --typography-caption-1-size: 10px;
+  --typography-caption-1-line: normal;
+  --typography-caption-1-weight: 400;
+  --typography-caption-2-size: 9px;
+  --typography-caption-2-line: normal;
+  --typography-caption-2-weight: 400;
+  --typography-button-large-size: 13px;
+  --typography-button-large-line: normal;
+  --typography-button-large-weight: 500;
+  --typography-button-medium-size: 12px;
+  --typography-button-medium-line: normal;
+  --typography-button-medium-weight: 500;
+  --typography-button-small-size: 11px;
+  --typography-button-small-line: normal;
+  --typography-button-small-weight: 500;
+  --typography-button-xsmall-size: 10px;
+  --typography-button-xsmall-line: normal;
+  --typography-button-xsmall-weight: 400;
+}
+
+.typography--h-1 {
+  font-size: var(--typography-h-1-size);
+  line-height: var(--typography-h-1-line);
+  font-weight: var(--typography-h-1-weight);
+}
+
+.typography--h-2 {
+  font-size: var(--typography-h-2-size);
+  line-height: var(--typography-h-2-line);
+  font-weight: var(--typography-h-2-weight);
+}
+
+.typography--h-3 {
+  font-size: var(--typography-h-3-size);
+  line-height: var(--typography-h-3-line);
+  font-weight: var(--typography-h-3-weight);
+}
+
+.typography--title-1 {
+  font-size: var(--typography-title-1-size);
+  line-height: var(--typography-title-1-line);
+  font-weight: var(--typography-title-1-weight);
+}
+
+.typography--title-2 {
+  font-size: var(--typography-title-2-size);
+  line-height: var(--typography-title-2-line);
+  font-weight: var(--typography-title-2-weight);
+}
+
+.typography--title-3 {
+  font-size: var(--typography-title-3-size);
+  line-height: var(--typography-title-3-line);
+  font-weight: var(--typography-title-3-weight);
+}
+
+.typography--sub-title-1 {
+  font-size: var(--typography-sub-title-1-size);
+  line-height: var(--typography-sub-title-1-line);
+  font-weight: var(--typography-sub-title-1-weight);
+}
+
+.typography--sub-title-2 {
+  font-size: var(--typography-sub-title-2-size);
+  line-height: var(--typography-sub-title-2-line);
+  font-weight: var(--typography-sub-title-2-weight);
+}
+
+.typography--sub-title-3 {
+  font-size: var(--typography-sub-title-3-size);
+  line-height: var(--typography-sub-title-3-line);
+  font-weight: var(--typography-sub-title-3-weight);
+}
+
+.typography--body-1 {
+  font-size: var(--typography-body-1-size);
+  line-height: var(--typography-body-1-line);
+  font-weight: var(--typography-body-1-weight);
+}
+
+.typography--body-2 {
+  font-size: var(--typography-body-2-size);
+  line-height: var(--typography-body-2-line);
+  font-weight: var(--typography-body-2-weight);
+}
+
+.typography--body-3 {
+  font-size: var(--typography-body-3-size);
+  line-height: var(--typography-body-3-line);
+  font-weight: var(--typography-body-3-weight);
+}
+
+.typography--caption-1 {
+  font-size: var(--typography-caption-1-size);
+  line-height: var(--typography-caption-1-line);
+  font-weight: var(--typography-caption-1-weight);
+}
+
+.typography--caption-2 {
+  font-size: var(--typography-caption-2-size);
+  line-height: var(--typography-caption-2-line);
+  font-weight: var(--typography-caption-2-weight);
+}
+
+.typography--button-large {
+  font-size: var(--typography-button-large-size);
+  line-height: var(--typography-button-large-line);
+  font-weight: var(--typography-button-large-weight);
+}
+
+.typography--button-medium {
+  font-size: var(--typography-button-medium-size);
+  line-height: var(--typography-button-medium-line);
+  font-weight: var(--typography-button-medium-weight);
+}
+
+.typography--button-small {
+  font-size: var(--typography-button-small-size);
+  line-height: var(--typography-button-small-line);
+  font-weight: var(--typography-button-small-weight);
+}
+
+.typography--button-xsmall {
+  font-size: var(--typography-button-xsmall-size);
+  line-height: var(--typography-button-xsmall-line);
+  font-weight: var(--typography-button-xsmall-weight);
+}

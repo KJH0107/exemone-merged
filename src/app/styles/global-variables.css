@@ -1,0 +1,120 @@
+:root {
+  /* gray-dark */
+  --color-d-gray-12: #121212;
+  --color-d-gray-11: #181818;
+  --color-d-gray-10: #1e1e1e;
+  --color-d-gray-09: #242424;
+  --color-d-gray-08: #282828;
+  --color-d-gray-07: #323232;
+  --color-d-gray-06: #3a3a3a;
+  --color-d-gray-05: #515151;
+  --color-d-gray-04: #777777;
+  --color-d-gray-03: #a2a2a2;
+  --color-d-gray-02: #c8c8c8;
+  --color-d-gray-01: #eeeeee;
+  --color-d-gray-00: #ffffff;
+
+  /* gray-white */
+  --color-w-gray-12: #282c32;
+  --color-w-gray-11: #434a54;
+  --color-w-gray-10: #626872;
+  --color-w-gray-09: #80868f;
+  --color-w-gray-08: #9fa5ae;
+  --color-w-gray-07: #b1b7c0;
+  --color-w-gray-06: #bec4cb;
+  --color-w-gray-05: #c9cdd2;
+  --color-w-gray-04: #d8dbde;
+  --color-w-gray-03: #e3e7ea;
+  --color-w-gray-02: #edf0f2;
+  --color-w-gray-01: #f8f9fa;
+  --color-w-gray-00: #ffffff;
+
+  /* blue (primary) */
+  --color-blue-10: #172554;
+  --color-blue-09: #1e3a8a;
+  --color-blue-08: #1e40af;
+  --color-blue-07: #1d4ed8;
+  --color-blue-06: #2563eb;
+  --color-blue-05: #3b82f6;
+  --color-blue-04: #60a5fa;
+  --color-blue-03: #93c5fd;
+  --color-blue-02: #bfdbfe;
+  --color-blue-01: #dbeafe;
+  --color-blue-00: #eff6ff;
+
+
+  /* red (critical) */
+  --color-red-10: #450a0a;
+  --color-red-09: #7f1d1d;
+  --color-red-08: #991b1b;
+  --color-red-07: #b91c1c;
+  --color-red-06: #dc2626;
+  --color-red-05: #ef4444;
+  --color-red-04: #f87171;
+  --color-red-03: #fca5a5;
+  --color-red-02: #fecaca;
+  --color-red-01: #fee2e2;
+  --color-red-00: #fef2f2;
+
+  /* yellow (warning) */
+  --color-yellow-10: #451a03;
+  --color-yellow-09: #78350f;
+  --color-yellow-08: #92400e;
+  --color-yellow-07: #b45309;
+  --color-yellow-06: #d97706;
+  --color-yellow-05: #f59e0b;
+  --color-yellow-04: #fbbf24;
+  --color-yellow-03: #fcd34d;
+  --color-yellow-02: #fde68a;
+  --color-yellow-01: #fef3c7;
+  --color-yellow-00: #fffbeb;
+
+  /* green (normal) */
+  --color-green-10: #022c22;
+  --color-green-09: #064e3b;
+  --color-green-08: #065f46;
+  --color-green-07: #047857;
+  --color-green-06: #059669;
+  --color-green-05: #10b981;
+  --color-green-04: #34d399;
+  --color-green-03: #6ee7b7;
+  --color-green-02: #a7f3d0;
+  --color-green-01: #d1fae5;
+  --color-green-00: #ecfdf5;
+
+  /* grid-toggle */
+  --grid-toggle-sum-color: #50bc5e;
+  --grid-toggle-avg-color: #ff7171;
+
+  /* gnb */
+  --gnb-header-height: 48px;
+  --gnb-sub-menu-width: 220px;
+  --lnb-header-height: 36px;
+  --lnb-menu-height: 36px;
+  --gnb-menu-item-content-width: 36px;
+  --gnb-menu-item-height: 36px;
+  /* 메뉴 높이 관련 변수는 JS에서 설정됨 (baseMenu.define.ts의 MENU_HEIGHT) */
+  --gnb-menu-width: 60px;
+  --gnb-menu-item-padding-horizontal: calc((var(--gnb-menu-width) - var(--gnb-menu-item-content-width)) / 2); /* 자동 계산: (60px - 36px) / 2 = 12px */
+  --gnb-menu-icon-size: 20px;
+  --gnb-menu-width-expanded-base: 240px;
+  --gnb-menu-width-opened-extra: 48px; /* 288 - 240 */
+  --gnb-menu-width-expanded: var(--gnb-menu-width-expanded-base); /* GNB 확장됨 */
+  --gnb-menu-width-opened: calc(var(--gnb-menu-width-expanded-base) + var(--gnb-menu-width-opened-extra)); /* GNB 슬라이드 열림 */
+  --gnb-menu-width-expanded-and-opened: calc(var(--gnb-menu-width-expanded-base) * 2); /* GNB 확장 + 슬라이드 열림 */
+}
+
+@media (max-width: 1600px) {
+  :root {
+    --gnb-header-height: 40px;
+    --gnb-sub-menu-width: 220px;
+    --lnb-header-height: 28px;
+    --lnb-menu-height: 32px;
+    --gnb-menu-item-content-width: 32px;
+    --gnb-menu-item-height: 32px;
+    --gnb-menu-width: 48px;
+    --gnb-menu-icon-size: 16px;
+    --gnb-menu-width-expanded-base: 224px;
+    --gnb-menu-width-opened-extra: 40px; /* 264 - 224 */
+  }
+}

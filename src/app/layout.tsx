@@ -10,10 +10,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <head>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="ko" data-theme="light">
+      <head />
       <body>
         <Providers>
           <div style={{ display: 'flex', minHeight: '100vh' }}>
