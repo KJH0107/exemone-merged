@@ -384,11 +384,13 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
 
         {/* Tab Content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
-          <GuideHighlight id="drawer-info" style={{ minHeight: '100%' }}>
-            {tab === '정보' && <InfoTab instance={instance} />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-metric" style={{ minHeight: '100%' }}>
-            {tab === '메트릭' && (
+          {tab === '정보' && (
+            <GuideHighlight id="drawer-info" style={{ minHeight: '100%' }}>
+              <InfoTab instance={instance} />
+            </GuideHighlight>
+          )}
+          {tab === '메트릭' && (
+            <GuideHighlight id="drawer-metric" style={{ minHeight: '100%' }}>
               <DbOverview
                 metric={metric}
                 sessionDist={sessionDist}
@@ -397,27 +399,39 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
                 tpsSeries={tpsSeries}
                 sessionSeries={sessionSeries}
               />
-            )}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-active-session" style={{ minHeight: '100%' }}>
-            {tab === '액티브 세션' && <ActiveSessionTab />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-sql-list" style={{ minHeight: '100%' }}>
-            {tab === 'SQL 목록' && <SqlTab />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-lock" style={{ minHeight: '100%' }}>
-            {tab === 'Lock 정보' && <LockTreeTab instance={instance} />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-alert" style={{ minHeight: '100%' }}>
-            {tab === '알람' && <AlarmTab />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-parameter" style={{ minHeight: '100%' }}>
-            {tab === '파라미터' && <ParameterTab />}
-          </GuideHighlight>
-          <GuideHighlight id="drawer-host-process" style={{ minHeight: '100%' }}>
-            {tab === '호스트 프로세스 목록' && <HostProcessTab />}
-          </GuideHighlight>
-          {!['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록'].includes(tab) && (
+            </GuideHighlight>
+          )}
+          {tab === '액티브 세션' && (
+            <GuideHighlight id="drawer-active-session" style={{ minHeight: '100%' }}>
+              <ActiveSessionTab />
+            </GuideHighlight>
+          )}
+          {tab === 'SQL 목록' && (
+            <GuideHighlight id="drawer-sql-list" style={{ minHeight: '100%' }}>
+              <SqlTab />
+            </GuideHighlight>
+          )}
+          {tab === 'Lock 정보' && (
+            <GuideHighlight id="drawer-lock" style={{ minHeight: '100%' }}>
+              <LockTreeTab instance={instance} />
+            </GuideHighlight>
+          )}
+          {tab === '알람' && (
+            <GuideHighlight id="drawer-alert" style={{ minHeight: '100%' }}>
+              <AlarmTab />
+            </GuideHighlight>
+          )}
+          {tab === '파라미터' && (
+            <GuideHighlight id="drawer-parameter" style={{ minHeight: '100%' }}>
+              <ParameterTab />
+            </GuideHighlight>
+          )}
+          {tab === '호스트 프로세스 목록' && (
+            <GuideHighlight id="drawer-host-process" style={{ minHeight: '100%' }}>
+              <HostProcessTab />
+            </GuideHighlight>
+          )}
+          {!TABS.includes(tab) && (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'var(--text-muted)', fontSize: 13 }}>
               {tab} 탭 — 다음 Sprint에서 구현 예정
             </div>

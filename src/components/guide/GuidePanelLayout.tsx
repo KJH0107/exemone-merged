@@ -4,6 +4,8 @@ import { useGuideStore } from '@/stores/guideStore'
 import { PAGE_FEATURES, type PageKey } from '@/lib/guide/features'
 import type { PageFeatures, FeatureItem } from '@/lib/guide/features'
 
+const detailFeatures = PAGE_FEATURES['database-detail']
+
 // 패널 너비 — 발표용 가독성을 위해 360px
 export const GUIDE_PANEL_WIDTH = 360
 
@@ -194,9 +196,52 @@ function ListView({ pageFeatures, theme, onSelect, onClose }: {
         </div>
       </div>
 
+      {/* 오버뷰 → Instance Detail 연결 섹션 */}
+      {pageFeatures.key === 'database' && (
+        <div style={{
+          padding: '14px 14px 10px',
+          borderTop: '1px solid #e2e8f0',
+          background: '#f8fafc',
+          flexShrink: 0,
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 800, color: '#94a3b8',
+            letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{ display: 'inline-block', width: 3, height: 12, background: '#cbd5e1', borderRadius: 2 }} />
+            다음 단계 — Instance Detail 가이드
+          </div>
+          <div style={{
+            background: '#f0fdfa',
+            border: '1.5px solid #99f6e4',
+            borderRadius: 10,
+            padding: '10px 14px 12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>🖥</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#134e4a' }}>인스턴스를 클릭하면 이어집니다</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#0f766e', lineHeight: 1.7, marginBottom: 10, wordBreak: 'keep-all' }}>
+              목록 또는 맵에서 인스턴스를 클릭하면 오른쪽 슬라이드가 열리고, 가이드가 자동으로 Instance Detail 모드로 전환됩니다.
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {detailFeatures.features.map(f => (
+                <span key={f.id} style={{
+                  fontSize: 11, padding: '3px 9px', borderRadius: 99,
+                  background: '#ccfbf1', color: '#0f766e', fontWeight: 600,
+                }}>
+                  {f.icon} {f.label.replace(' 탭 (', ' (').replace(/\).*/, ')')}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 하단 안내 */}
       <div style={{
-        padding: '12px 20px',
+        padding: '10px 20px',
         borderTop: `1px solid ${t.headerBorder}`,
         background: t.headerBg,
         textAlign: 'center',
