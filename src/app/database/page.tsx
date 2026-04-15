@@ -18,6 +18,8 @@ import type {
   DbMetric, SessionDistribution, TimeSeriesPoint, SlowQueryItem,
 } from '@/types/db.types'
 import ExportButton from '@/components/common/ExportButton'
+import GuideHighlight from '@/components/guide/GuideHighlight'
+import { useGuideStore } from '@/stores/guideStore'
 
 const DB_TYPE_MAP: Record<string, string> = {
   'PostgreSQL': 'postgresql', 'MySQL': 'mysql', 'Oracle': 'oracle',
@@ -95,22 +97,26 @@ export default function DatabasePage() {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 12, padding: 12 }}>
 
         {/* Filter Panel — 상단부터 끝까지 */}
-        <FilterPanel
-          selectedTypes={selectedTypes}
-          selectedGroups={selectedGroups}
-          onTypeChange={setSelectedTypes}
-          onGroupChange={setSelectedGroups}
-        />
+        <GuideHighlight id="filters">
+          <FilterPanel
+            selectedTypes={selectedTypes}
+            selectedGroups={selectedGroups}
+            onTypeChange={setSelectedTypes}
+            onGroupChange={setSelectedGroups}
+          />
+        </GuideHighlight>
 
         {/* Right content */}
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* Summary Bar */}
-          <SummaryBar
-            summary={totalSummary}
-            selected={summaryFilter}
-            onSelect={handleSummarySelect}
-          />
+          <GuideHighlight id="instance-card">
+            <SummaryBar
+              summary={totalSummary}
+              selected={summaryFilter}
+              onSelect={handleSummarySelect}
+            />
+          </GuideHighlight>
 
             {/* Active filter chips */}
             {(summaryFilter || !selectedTypes.includes('All') || !selectedGroups.includes('All')) && (
@@ -138,17 +144,21 @@ export default function DatabasePage() {
             )}
 
             {/* Hexagon Grid */}
-            <HexagonGrid
-              instances={filtered}
-              onSelect={setSelectedInstance}
-            />
+            <GuideHighlight id="instance-map">
+              <HexagonGrid
+                instances={filtered}
+                onSelect={setSelectedInstance}
+              />
+            </GuideHighlight>
 
             {/* Instance Table */}
-            <InstanceTable
-              instances={filtered}
-              onSelect={setSelectedInstance}
-              selectedId={selectedInstance?.id}
-            />
+            <GuideHighlight id="instance-list">
+              <InstanceTable
+                instances={filtered}
+                onSelect={setSelectedInstance}
+                selectedId={selectedInstance?.id}
+              />
+            </GuideHighlight>
         </div>
       </div>
 
@@ -207,10 +217,25 @@ function appendPoint(series: TimeSeriesPoint[], value: number): TimeSeriesPoint[
   return [...series.slice(-29), { timestamp: Date.now(), value }]
 }
 
+const TAB_FEATURE_MAP: Record<string, string> = {
+  '정보': 'drawer-info',
+  '메트릭': 'drawer-metric',
+  '액티브 세션': 'drawer-active-session',
+  'SQL 목록': 'drawer-sql-list',
+  'Lock 정보': 'drawer-lock',
+  '알람': 'drawer-alert',
+  '파라미터': 'drawer-parameter',
+  '호스트 프로세스 목록': 'drawer-host-process',
+}
+const FEATURE_TAB_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_FEATURE_MAP).map(([tab, id]) => [id, tab])
+)
+
 function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: () => void }) {
   const [tab, setTab] = useState('정보')
   const [expanded, setExpanded] = useState(false)
   const TABS = ['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록']
+  const { isOpen: guideOpen, activeFeature, openDrawer, closeDrawer, setFeature } = useGuideStore()
 
   // 메트릭 상태 (인스턴스 실제 값 기반)
   const [metric, setMetric]           = useState<DbMetric>(() => genMetric(instance))
@@ -241,14 +266,30 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
+  // 드로어 열릴 때 guideStore에 알림
+  useEffect(() => { openDrawer(TAB_FEATURE_MAP[tab] ?? undefined); return () => closeDrawer() }, [])
+
+  // 탭 → 가이드 동기화
+  const handleTabChange = (newTab: string) => {
+    setTab(newTab)
+    if (guideOpen) setFeature(TAB_FEATURE_MAP[newTab] ?? null)
+  }
+
+  // 가이드 → 탭 동기화
+  useEffect(() => {
+    if (!activeFeature) return
+    const targetTab = FEATURE_TAB_MAP[activeFeature]
+    if (targetTab && targetTab !== tab) setTab(targetTab)
+  }, [activeFeature])
+
   return (
     <>
       {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.2)', zIndex: 100 }} />
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, right: guideOpen ? 360 : 0, background: 'rgba(0,0,0,.2)', zIndex: 100 }} />
 
       {/* Drawer */}
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
+        position: 'fixed', top: 0, right: guideOpen ? 360 : 0, bottom: 0,
         width: expanded ? '95%' : '70%',
         maxWidth: expanded ? 'none' : 900,
         background: '#fff', zIndex: 101, display: 'flex', flexDirection: 'column',
@@ -329,7 +370,7 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--tab-bg)', padding: '0 16px', flexShrink: 0, overflowX: 'auto' }}>
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
+            <button key={t} onClick={() => handleTabChange(t)} style={{
               background: tab === t ? 'var(--tab-active-bg)' : 'transparent',
               border: 'none', cursor: 'pointer', padding: '10px 14px', fontSize: 12,
               color: tab === t ? 'var(--tab-active-text)' : 'var(--tab-text)',
@@ -343,23 +384,39 @@ function InstanceDrawer({ instance, onClose }: { instance: DbInstance; onClose: 
 
         {/* Tab Content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
-          {tab === '정보' && <InfoTab instance={instance} />}
-          {tab === '메트릭' && (
-            <DbOverview
-              metric={metric}
-              sessionDist={sessionDist}
-              cpuSeries={cpuSeries}
-              memSeries={memSeries}
-              tpsSeries={tpsSeries}
-              sessionSeries={sessionSeries}
-            />
-          )}
-          {tab === '액티브 세션' && <ActiveSessionTab />}
-          {tab === 'SQL 목록' && <SqlTab />}
-          {tab === 'Lock 정보' && <LockTreeTab instance={instance} />}
-          {tab === '알람' && <AlarmTab />}
-          {tab === '파라미터' && <ParameterTab />}
-          {tab === '호스트 프로세스 목록' && <HostProcessTab />}
+          <GuideHighlight id="drawer-info" style={{ minHeight: '100%' }}>
+            {tab === '정보' && <InfoTab instance={instance} />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-metric" style={{ minHeight: '100%' }}>
+            {tab === '메트릭' && (
+              <DbOverview
+                metric={metric}
+                sessionDist={sessionDist}
+                cpuSeries={cpuSeries}
+                memSeries={memSeries}
+                tpsSeries={tpsSeries}
+                sessionSeries={sessionSeries}
+              />
+            )}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-active-session" style={{ minHeight: '100%' }}>
+            {tab === '액티브 세션' && <ActiveSessionTab />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-sql-list" style={{ minHeight: '100%' }}>
+            {tab === 'SQL 목록' && <SqlTab />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-lock" style={{ minHeight: '100%' }}>
+            {tab === 'Lock 정보' && <LockTreeTab instance={instance} />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-alert" style={{ minHeight: '100%' }}>
+            {tab === '알람' && <AlarmTab />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-parameter" style={{ minHeight: '100%' }}>
+            {tab === '파라미터' && <ParameterTab />}
+          </GuideHighlight>
+          <GuideHighlight id="drawer-host-process" style={{ minHeight: '100%' }}>
+            {tab === '호스트 프로세스 목록' && <HostProcessTab />}
+          </GuideHighlight>
           {!['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록'].includes(tab) && (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'var(--text-muted)', fontSize: 13 }}>
               {tab} 탭 — 다음 Sprint에서 구현 예정

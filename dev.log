@@ -1,0 +1,480 @@
+
+> exemone-clone@0.1.0 dev
+> next dev -p 6062
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:6062
+
+ ✓ Starting...
+ ✓ Ready in 2.3s
+ ○ Compiling /database ...
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Bold.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ GET /database 500 in 10937ms
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Bold.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ GET / 500 in 6462ms
+ GET /database 500 in 17ms
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Bold.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ GET /performance/database 500 in 581ms
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Medium.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Regular.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/Pretendard/Pretendard-Light.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ ⨯ ./src/app/styles/typography-v2.css:4:1
+Module not found: Can't resolve './@/common/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.woff2'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/app/globals.css
+ ✓ Compiled /performance/database in 273ms (1091 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 786ms (1406 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /_next/static/webpack/17cf960bff90ed45.webpack.hot-update.json 404 in 957ms
+ ○ Compiling /performance/database ...
+ ✓ Compiled /performance/database in 510ms (910 modules)
+ GET /performance/database 200 in 812ms
+ GET /db/mysql 404 in 37ms
+ GET /db/postgresql 404 in 75ms
+ ○ Compiling /database ...
+ ✓ Compiled /database in 634ms (922 modules)
+ GET /database 200 in 306ms
+ GET /database 200 in 73ms
+ GET /database 200 in 34ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 3.3s (2012 modules)
+ ⨯ src\app\database\page.tsx (153:33) @ viewMode
+ ⨯ ReferenceError: viewMode is not defined
+    at eval (./src/app/database/page.tsx:337:57)
+    at Array.map (<anonymous>)
+    at DatabasePage (./src/app/database/page.tsx:330:35)
+digest: "1243654019"
+[0m [90m 151 |[39m                   style[33m=[39m{{[0m
+[0m [90m 152 |[39m                     padding[33m:[39m [32m'4px 12px'[39m[33m,[39m fontSize[33m:[39m [35m11[39m[33m,[39m border[33m:[39m [32m'none'[39m[33m,[39m cursor[33m:[39m [32m'pointer'[39m[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 153 |[39m                     background[33m:[39m viewMode [33m===[39m v[33m.[39mkey [33m?[39m [32m'#006DFF'[39m [33m:[39m [32m'var(--card-bg)'[39m[33m,[39m[0m
+[0m [90m     |[39m                                 [31m[1m^[22m[39m[0m
+[0m [90m 154 |[39m                     color[33m:[39m      viewMode [33m===[39m v[33m.[39mkey [33m?[39m [32m'#fff'[39m    [33m:[39m [32m'var(--text-muted)'[39m[33m,[39m[0m
+[0m [90m 155 |[39m                     fontWeight[33m:[39m viewMode [33m===[39m v[33m.[39mkey [33m?[39m [35m600[39m       [33m:[39m [35m400[39m[33m,[39m[0m
+[0m [90m 156 |[39m                     transition[33m:[39m [32m'background 0.15s'[39m[33m,[39m[0m
+ GET /database 500 in 1794ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 960ms (2010 modules)
+ GET /database 200 in 346ms
+ ✓ Compiled in 933ms (2010 modules)
+ GET /database 200 in 204ms
+ GET /database 200 in 47ms
+ GET /database 200 in 67ms
+ ✓ Compiled in 1916ms (2010 modules)
+ ○ Compiling /database/single ...
+ ✓ Compiled /database/single in 1487ms (1996 modules)
+ GET /database/single 200 in 2058ms
+ ✓ Compiled / in 430ms (928 modules)
+ GET / 307 in 630ms
+ GET /database 200 in 362ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 542ms (2003 modules)
+ GET /db/postgresql 404 in 77ms
+ ✓ Compiled /database/single in 135ms (933 modules)
+ GET /database/single 200 in 262ms
+ GET /db/postgresql 404 in 49ms
+ ✓ Compiled in 1562ms (2016 modules)
+ GET /database 200 in 412ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 570ms (1999 modules)
+ GET /db/postgresql/object-size 404 in 130ms
+ GET /db/postgresql/dashboard 404 in 51ms
+ GET /db/postgresql/multi 404 in 59ms
+ GET /db/postgresql/single 404 in 24ms
+ ✓ Compiled in 412ms (1092 modules)
+ ✓ Compiled /_not-found in 465ms (1999 modules)
+ GET /db/postgresql/single 404 in 73ms
+ ○ Compiling /db/postgresql/single ...
+ ✓ Compiled /db/postgresql/single in 2.3s (2002 modules)
+ GET /db/postgresql/single 200 in 372ms
+ GET /db/postgresql/single 200 in 96ms
+ ✓ Compiled in 1892ms (2022 modules)
+ GET /db/postgresql/single 200 in 500ms
+ GET /db/postgresql/single 200 in 74ms
+ GET /database 200 in 166ms
+ GET /db/postgresql/single 200 in 117ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 4.2s (2022 modules)
+ ⨯ src\app\db\postgresql\single\page.tsx (258:18) @ STATS_EVENTS
+ ⨯ ReferenceError: STATS_EVENTS is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1056:59)
+digest: "1252412980"
+[0m [90m 256 |[39m             [33m<[39m[33mdiv[39m style[33m=[39m{{ padding[33m:[39m[32m'8px 10px'[39m[33m,[39m display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m8[39m }}[33m>[39m[0m
+[0m [90m 257 |[39m               [33m<[39m[33mdiv[39m style[33m=[39m{{ flex[33m:[39m[35m1[39m }}[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 258 |[39m                 {[33mSTATS_EVENTS[39m[33m.[39mmap(s [33m=>[39m ([0m
+[0m [90m     |[39m                  [31m[1m^[22m[39m[0m
+[0m [90m 259 |[39m                   [33m<[39m[33mdiv[39m key[33m=[39m{s[33m.[39mlabel} style[33m=[39m{{ marginBottom[33m:[39m[35m5[39m }}[33m>[39m[0m
+[0m [90m 260 |[39m                     [33m<[39m[33mdiv[39m style[33m=[39m{{ fontSize[33m:[39m[35m9[39m[33m,[39m color[33m:[39m[32m'var(--text-muted,#80868f)'[39m[33m,[39m marginBottom[33m:[39m[35m2[39m }}[33m>[39m{s[33m.[39mlabel}[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 261 |[39m                     [33m<[39m[33mdiv[39m style[33m=[39m{{ height[33m:[39m[35m5[39m[33m,[39m background[33m:[39m[32m'var(--border,#c9cdd2)'[39m[33m,[39m borderRadius[33m:[39m[35m3[39m }}[33m>[39m[0m
+ GET /db/postgresql/single 500 in 1536ms
+ ✓ Compiled in 774ms (2022 modules)
+ ⨯ src\app\db\postgresql\single\page.tsx (258:18) @ STATS_EVENTS
+ ⨯ ReferenceError: STATS_EVENTS is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1056:59)
+digest: "1252412980"
+[0m [90m 256 |[39m             [33m<[39m[33mdiv[39m style[33m=[39m{{ padding[33m:[39m[32m'8px 10px'[39m[33m,[39m display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m8[39m }}[33m>[39m[0m
+[0m [90m 257 |[39m               [33m<[39m[33mdiv[39m style[33m=[39m{{ flex[33m:[39m[35m1[39m }}[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 258 |[39m                 {[33mSTATS_EVENTS[39m[33m.[39mmap(s [33m=>[39m ([0m
+[0m [90m     |[39m                  [31m[1m^[22m[39m[0m
+[0m [90m 259 |[39m                   [33m<[39m[33mdiv[39m key[33m=[39m{s[33m.[39mlabel} style[33m=[39m{{ marginBottom[33m:[39m[35m5[39m }}[33m>[39m[0m
+[0m [90m 260 |[39m                     [33m<[39m[33mdiv[39m style[33m=[39m{{ fontSize[33m:[39m[35m9[39m[33m,[39m color[33m:[39m[32m'var(--text-muted,#80868f)'[39m[33m,[39m marginBottom[33m:[39m[35m2[39m }}[33m>[39m{s[33m.[39mlabel}[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 261 |[39m                     [33m<[39m[33mdiv[39m style[33m=[39m{{ height[33m:[39m[35m5[39m[33m,[39m background[33m:[39m[32m'var(--border,#c9cdd2)'[39m[33m,[39m borderRadius[33m:[39m[35m3[39m }}[33m>[39m[0m
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /db/postgresql/single 500 in 166ms
+ ✓ Compiled in 1137ms (2022 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /db/postgresql/single 200 in 197ms
+ ✓ Compiled in 867ms (2022 modules)
+ ✓ Compiled in 1104ms (2022 modules)
+ GET /db/postgresql/single 200 in 248ms
+ GET /db/postgresql/single 200 in 514ms
+ ✓ Compiled in 1291ms (2022 modules)
+ ✓ Compiled in 922ms (2022 modules)
+ GET /db/postgresql/single 200 in 218ms
+ GET /db/postgresql/single 200 in 78ms
+ ✓ Compiled in 1595ms (2022 modules)
+ GET /db/postgresql/single 200 in 1618ms
+ GET /database 200 in 202ms
+ GET /db/postgresql/single 200 in 83ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1170ms (2005 modules)
+ GET /db/postgresql/single 200 in 785ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 1387ms (2022 modules)
+ ⨯ src\app\db\postgresql\single\page.tsx (321:18) @ SQL_FUNCTION
+ ⨯ ReferenceError: SQL_FUNCTION is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1416:59)
+digest: "3815462516"
+[0m [90m 319 |[39m             [33m<[39m[33mdiv[39m style[33m=[39m{{ padding[33m:[39m[32m'6px 10px'[39m[33m,[39m display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m8[39m }}[33m>[39m[0m
+[0m [90m 320 |[39m               [33m<[39m[33mdiv[39m style[33m=[39m{{ flex[33m:[39m[35m1[39m }}[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 321 |[39m                 {[33mSQL_FUNCTION[39m[33m.[39mmap(s [33m=>[39m ([0m
+[0m [90m     |[39m                  [31m[1m^[22m[39m[0m
+[0m [90m 322 |[39m                   [33m<[39m[33mdiv[39m key[33m=[39m{s[33m.[39mtype} style[33m=[39m{{ display[33m:[39m[32m'flex'[39m[33m,[39m justifyContent[33m:[39m[32m'space-between'[39m[33m,[39m padding[33m:[39m[32m'2px 0'[39m[33m,[39m borderBottom[33m:[39m[32m'1px solid var(--border-light,#d8dbde)'[39m }}[33m>[39m[0m
+[0m [90m 323 |[39m                     [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m color[33m:[39m[32m'var(--text-secondary,#626872)'[39m }}[33m>[39m{s[33m.[39mtype}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m [90m 324 |[39m                     [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m fontWeight[33m:[39m[35m600[39m[33m,[39m color[33m:[39m[32m'var(--text-primary,#282c32)'[39m }}[33m>[39m{s[33m.[39mcount[33m.[39mtoLocaleString()}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+ GET /db/postgresql/single 500 in 927ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 922ms (2022 modules)
+ ⨯ src\app\db\postgresql\single\page.tsx (190:17) @ useClock
+ ⨯ ReferenceError: useClock is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:813:19)
+digest: "2945577896"
+[0m [90m 188 |[39m [90m══════════════════════════════════════════════════════════ */[39m[0m
+[0m [90m 189 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mPostgreSQLSingleView[39m() {[0m
+[0m[31m[1m>[22m[39m[90m 190 |[39m   [36mconst[39m clock [33m=[39m useClock()[0m
+[0m [90m     |[39m                 [31m[1m^[22m[39m[0m
+[0m [90m 191 |[39m   [36mconst[39m [sessionOpen[33m,[39m    setSessionOpen]    [33m=[39m useState([36mfalse[39m)[0m
+[0m [90m 192 |[39m   [36mconst[39m [selectedPid[33m,[39m    setSelectedPid]    [33m=[39m useState[33m<[39m[33mnumber[39m[33m|[39m[36mnull[39m[33m>[39m([36mnull[39m)[0m
+[0m [90m 193 |[39m   [36mconst[39m [adminOpen[33m,[39m      setAdminOpen]      [33m=[39m useState[33m<[39m[33mRecord[39m[33m<[39m[33mstring[39m[33m,[39mboolean[33m>>[39m({ vacuum[33m:[39m[36mtrue[39m[33m,[39m additional[33m:[39m[36mfalse[39m[33m,[39m alert[33m:[39m[36mfalse[39m })[0m
+ ⨯ src\app\db\postgresql\single\page.tsx (190:17) @ useClock
+ ⨯ ReferenceError: useClock is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:813:19)
+digest: "2945577896"
+[0m [90m 188 |[39m [90m══════════════════════════════════════════════════════════ */[39m[0m
+[0m [90m 189 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mPostgreSQLSingleView[39m() {[0m
+[0m[31m[1m>[22m[39m[90m 190 |[39m   [36mconst[39m clock [33m=[39m useClock()[0m
+[0m [90m     |[39m                 [31m[1m^[22m[39m[0m
+[0m [90m 191 |[39m   [36mconst[39m [sessionOpen[33m,[39m    setSessionOpen]    [33m=[39m useState([36mfalse[39m)[0m
+[0m [90m 192 |[39m   [36mconst[39m [selectedPid[33m,[39m    setSelectedPid]    [33m=[39m useState[33m<[39m[33mnumber[39m[33m|[39m[36mnull[39m[33m>[39m([36mnull[39m)[0m
+[0m [90m 193 |[39m   [36mconst[39m [adminOpen[33m,[39m      setAdminOpen]      [33m=[39m useState[33m<[39m[33mRecord[39m[33m<[39m[33mstring[39m[33m,[39mboolean[33m>>[39m({ vacuum[33m:[39m[36mtrue[39m[33m,[39m additional[33m:[39m[36mfalse[39m[33m,[39m alert[33m:[39m[36mfalse[39m })[0m
+ GET /db/postgresql/single 500 in 330ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 1001ms (2022 modules)
+ ⨯ src\app\db\postgresql\single\page.tsx (244:116) @ clock
+ ⨯ ReferenceError: clock is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1002:43)
+digest: "502143710"
+[0m [90m 242 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ width[33m:[39m[35m6[39m[33m,[39m height[33m:[39m[35m6[39m[33m,[39m borderRadius[33m:[39m[32m'50%'[39m[33m,[39m background[33m:[39m[32m'#22c55e'[39m[33m,[39m boxShadow[33m:[39m[32m'0 0 6px #22c55e'[39m[33m,[39m display[33m:[39m[32m'inline-block'[39m }} [33m/[39m[33m>[39m[0m
+[0m [90m 243 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m color[33m:[39m[32m'var(--text-muted,#80868f)'[39m }}[33m>[39m[33mLive[39m[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 244 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m11[39m[33m,[39m color[33m:[39m[32m'var(--text-secondary,#626872)'[39m[33m,[39m fontVariantNumeric[33m:[39m[32m'tabular-nums'[39m }}[33m>[39m{clock}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m [90m     |[39m                                                                                                                    [31m[1m^[22m[39m[0m
+[0m [90m 245 |[39m         [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 246 |[39m         [33m<[39m[33mdiv[39m style[33m=[39m{{ display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m6[39m[33m,[39m marginLeft[33m:[39m[35m12[39m }}[33m>[39m[0m
+[0m [90m 247 |[39m           {[[32m'⚙'[39m[33m,[39m[32m'📋'[39m[33m,[39m[32m'↗'[39m][33m.[39mmap(ic [33m=>[39m ([0m
+ ⨯ src\app\db\postgresql\single\page.tsx (244:116) @ clock
+ ⨯ ReferenceError: clock is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1002:43)
+digest: "502143710"
+[0m [90m 242 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ width[33m:[39m[35m6[39m[33m,[39m height[33m:[39m[35m6[39m[33m,[39m borderRadius[33m:[39m[32m'50%'[39m[33m,[39m background[33m:[39m[32m'#22c55e'[39m[33m,[39m boxShadow[33m:[39m[32m'0 0 6px #22c55e'[39m[33m,[39m display[33m:[39m[32m'inline-block'[39m }} [33m/[39m[33m>[39m[0m
+[0m [90m 243 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m color[33m:[39m[32m'var(--text-muted,#80868f)'[39m }}[33m>[39m[33mLive[39m[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 244 |[39m           [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m11[39m[33m,[39m color[33m:[39m[32m'var(--text-secondary,#626872)'[39m[33m,[39m fontVariantNumeric[33m:[39m[32m'tabular-nums'[39m }}[33m>[39m{clock}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m [90m     |[39m                                                                                                                    [31m[1m^[22m[39m[0m
+[0m [90m 245 |[39m         [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 246 |[39m         [33m<[39m[33mdiv[39m style[33m=[39m{{ display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m6[39m[33m,[39m marginLeft[33m:[39m[35m12[39m }}[33m>[39m[0m
+[0m [90m 247 |[39m           {[[32m'⚙'[39m[33m,[39m[32m'📋'[39m[33m,[39m[32m'↗'[39m][33m.[39mmap(ic [33m=>[39m ([0m
+ GET /db/postgresql/single 500 in 628ms
+ ✓ Compiled in 1592ms (2022 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⨯ src\app\db\postgresql\single\page.tsx (323:18) @ SQL_FUNCTION
+ ⨯ ReferenceError: SQL_FUNCTION is not defined
+    at PostgreSQLSingleView (./src/app/db/postgresql/single/page.tsx:1421:59)
+digest: "948205776"
+[0m [90m 321 |[39m             [33m<[39m[33mdiv[39m style[33m=[39m{{ padding[33m:[39m[32m'6px 10px'[39m[33m,[39m display[33m:[39m[32m'flex'[39m[33m,[39m gap[33m:[39m[35m8[39m }}[33m>[39m[0m
+[0m [90m 322 |[39m               [33m<[39m[33mdiv[39m style[33m=[39m{{ flex[33m:[39m[35m1[39m }}[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 323 |[39m                 {[33mSQL_FUNCTION[39m[33m.[39mmap(s [33m=>[39m ([0m
+[0m [90m     |[39m                  [31m[1m^[22m[39m[0m
+[0m [90m 324 |[39m                   [33m<[39m[33mdiv[39m key[33m=[39m{s[33m.[39mtype} style[33m=[39m{{ display[33m:[39m[32m'flex'[39m[33m,[39m justifyContent[33m:[39m[32m'space-between'[39m[33m,[39m padding[33m:[39m[32m'2px 0'[39m[33m,[39m borderBottom[33m:[39m[32m'1px solid var(--border-light,#d8dbde)'[39m }}[33m>[39m[0m
+[0m [90m 325 |[39m                     [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m color[33m:[39m[32m'var(--text-secondary,#626872)'[39m }}[33m>[39m{s[33m.[39mtype}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+[0m [90m 326 |[39m                     [33m<[39m[33mspan[39m style[33m=[39m{{ fontSize[33m:[39m[35m10[39m[33m,[39m fontWeight[33m:[39m[35m600[39m[33m,[39m color[33m:[39m[32m'var(--text-primary,#282c32)'[39m }}[33m>[39m{s[33m.[39mcount[33m.[39mtoLocaleString()}[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+ GET /db/postgresql/single 500 in 283ms
+ ✓ Compiled in 2s (2022 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /db/postgresql/single 200 in 282ms
+ ✓ Compiled in 1452ms (2022 modules)
+ ✓ Compiled in 2.1s (2022 modules)
+ GET /db/postgresql/single 200 in 141ms
+ GET /db/postgresql/single 200 in 145ms
+ GET /db/postgresql/single 200 in 103ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 785ms (2005 modules)
+ GET /db/postgresql/multi 404 in 72ms
+ GET /db/postgresql/single 200 in 95ms
+ ✓ Compiled in 1250ms (2022 modules)
+ ✓ Compiled in 1245ms (2022 modules)
+ ✓ Compiled in 1058ms (2022 modules)
+ GET /db/postgresql/single 200 in 480ms
+ GET /db/postgresql/single 200 in 87ms
+ ✓ Compiled in 2s (2022 modules)
+ ✓ Compiled in 766ms (2022 modules)
+ GET /db/postgresql/single 200 in 762ms
+ GET /db/postgresql/single 200 in 89ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1259ms (2025 modules)
+ GET /_next/static/css/app/layout.css?v=1775464335763 404 in 1459ms
+ GET /_next/static/chunks/main-app.js?v=1775464335763 404 in 1452ms
+ GET /_next/static/chunks/webpack.js?v=1775464335763 404 in 1473ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 1451ms
+ GET /_next/static/chunks/app/layout.js 404 in 1447ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 1450ms
+ GET /_next/static/css/app/layout.css?v=1775464337347 404 in 52ms
+ GET /db/postgresql/single 200 in 2208ms
+ GET /_next/static/css/app/layout.css?v=1775464613787 404 in 461ms
+ GET /_next/static/chunks/main-app.js?v=1775464613787 404 in 457ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 430ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 448ms
+ GET /db/postgresql/single 200 in 85ms
+ GET /_next/static/css/app/layout.css?v=1775464619981 404 in 127ms
+ GET /_next/static/chunks/main-app.js?v=1775464619981 404 in 197ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 197ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 196ms
+ GET /db/postgresql/single 200 in 98ms
+ GET /_next/static/css/app/layout.css?v=1775465984680 404 in 65ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 93ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 92ms
+ GET /_next/static/chunks/main-app.js?v=1775465984680 404 in 91ms
+ GET /db/postgresql/single 200 in 47ms
+ GET /_next/static/css/app/layout.css?v=1775465986701 404 in 52ms
+ GET /_next/static/chunks/main-app.js?v=1775465986701 404 in 56ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 57ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 56ms
+ GET /database 200 in 168ms
+ GET /_next/static/css/app/layout.css?v=1775465989080 404 in 60ms
+ GET /_next/static/chunks/app/database/page.js 404 in 59ms
+ GET /_next/static/chunks/main-app.js?v=1775465989080 404 in 60ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 59ms
+ GET /db/postgresql/single 200 in 96ms
+ GET /_next/static/css/app/layout.css?v=1775465990159 404 in 53ms
+ GET /_next/static/chunks/main-app.js?v=1775465990159 404 in 71ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 70ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 69ms
+ GET /database 200 in 83ms
+ GET /_next/static/css/app/layout.css?v=1775465991294 404 in 62ms
+ GET /_next/static/chunks/app/database/page.js 404 in 68ms
+ GET /_next/static/chunks/main-app.js?v=1775465991294 404 in 69ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 67ms
+ GET /database 200 in 77ms
+ GET /_next/static/css/app/layout.css?v=1775465991881 404 in 72ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 104ms
+ GET /_next/static/chunks/main-app.js?v=1775465991881 404 in 104ms
+ GET /_next/static/chunks/app/database/page.js 404 in 103ms
+ GET /database 200 in 74ms
+ GET /_next/static/css/app/layout.css?v=1775465992742 404 in 66ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 70ms
+ GET /_next/static/chunks/app/database/page.js 404 in 69ms
+ GET /_next/static/chunks/main-app.js?v=1775465992742 404 in 73ms
+ GET /database 200 in 91ms
+ GET /_next/static/css/app/layout.css?v=1775466010273 404 in 37ms
+ GET /_next/static/chunks/main-app.js?v=1775466010273 404 in 70ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 68ms
+ GET /_next/static/chunks/app/database/page.js 404 in 65ms
+ GET /db/postgresql/dashboard 404 in 28ms
+ GET /_next/static/css/app/layout.css?v=1775466020149 404 in 43ms
+ GET /_next/static/chunks/main-app.js?v=1775466020149 404 in 40ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 39ms
+ GET /db/postgresql/single 200 in 69ms
+ GET /_next/static/css/app/layout.css?v=1775466022739 404 in 49ms
+ GET /_next/static/chunks/main-app.js?v=1775466022739 404 in 59ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 62ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 60ms
+ GET /database 200 in 75ms
+ GET /_next/static/css/app/layout.css?v=1775466030922 404 in 48ms
+ GET /_next/static/chunks/main-app.js?v=1775466030922 404 in 61ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 58ms
+ GET /_next/static/chunks/app/database/page.js 404 in 54ms
+ GET /db/postgresql/single 200 in 56ms
+ GET /_next/static/css/app/layout.css?v=1775466097087 404 in 57ms
+ GET /_next/static/chunks/main-app.js?v=1775466097087 404 in 76ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 68ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 68ms
+ ✓ Compiled in 7s (2022 modules)
+ ✓ Compiled in 8.5s (2022 modules)
+ ✓ Compiled in 2.1s (2022 modules)
+ ✓ Compiled in 2.5s (2022 modules)
+ ✓ Compiled in 1471ms (2022 modules)
+ ✓ Compiled in 849ms (2022 modules)
+ ✓ Compiled in 928ms (2022 modules)
+ ✓ Compiled in 2.4s (2022 modules)
+ ✓ Compiled in 1504ms (2022 modules)
+ ✓ Compiled in 897ms (2022 modules)
+ ✓ Compiled in 1158ms (2022 modules)
+ ✓ Compiled in 1694ms (2022 modules)
+ ✓ Compiled in 1480ms (2022 modules)
+ ✓ Compiled in 1060ms (2022 modules)
+ ✓ Compiled in 808ms (2022 modules)
+ ✓ Compiled in 1157ms (2022 modules)
+ ✓ Compiled in 682ms (2022 modules)
+ ✓ Compiled in 1243ms (2022 modules)
+ GET /db/postgresql/single 200 in 1125ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 5.2s (2118 modules)
+ GET /database 200 in 2902ms
+ GET /_next/static/css/app/layout.css?v=1775466820182 404 in 74ms
+ GET /_next/static/chunks/main-app.js?v=1775466820182 404 in 82ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 79ms
+ GET /_next/static/chunks/app/database/page.js 404 in 82ms
+ GET /_next/static/chunks/app/layout.js 404 in 78ms
+ GET /db/postgresql/single 200 in 78ms
+ GET /_next/static/css/app/layout.css?v=1775466918685 404 in 86ms
+ GET /_next/static/chunks/main-app.js?v=1775466918685 404 in 98ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 97ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 96ms
+ GET /_next/static/chunks/app/layout.js 404 in 96ms
+ GET /db/postgresql/single 200 in 102ms
+ GET /_next/static/css/app/layout.css?v=1775466919912 404 in 148ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 172ms
+ GET /_next/static/chunks/main-app.js?v=1775466919912 404 in 176ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 171ms
+ GET /_next/static/chunks/app/layout.js 404 in 172ms
+ GET /database 200 in 90ms
+ GET /_next/static/css/app/layout.css?v=1775466923762 404 in 114ms
+ GET /_next/static/chunks/app/layout.js 404 in 105ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 108ms
+ GET /_next/static/chunks/main-app.js?v=1775466923762 404 in 112ms
+ GET /_next/static/chunks/app/database/page.js 404 in 107ms
+ GET /db/postgresql/single 200 in 67ms
+ GET /_next/static/css/app/layout.css?v=1775466925730 404 in 92ms
+ GET /_next/static/chunks/main-app.js?v=1775466925730 404 in 96ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 94ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 96ms
+ GET /_next/static/chunks/app/layout.js 404 in 94ms
+ ✓ Compiled in 2.1s (2064 modules)
+ ✓ Compiled in 1609ms (2064 modules)
+ ✓ Compiled in 5.5s (2064 modules)
+ ✓ Compiled in 1232ms (2064 modules)
+ ✓ Compiled in 879ms (2064 modules)
+ GET /db/postgresql/single 200 in 237ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 3s (2091 modules)
+ ○ Compiling /alert ...
+ ✓ Compiled /alert in 1845ms (2097 modules)
+ GET /_next/static/chunks/app/database/page.js 404 in 266ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 266ms
+ GET /database 200 in 719ms
+ GET /_next/static/css/app/layout.css?v=1775467684475 404 in 123ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 128ms
+ GET /_next/static/chunks/main-app.js?v=1775467684475 404 in 130ms
+ GET /_next/static/chunks/app/database/page.js 404 in 128ms
+ GET /_next/static/chunks/app/layout.js 404 in 127ms
+ GET /db/postgresql/single 200 in 102ms
+ GET /_next/static/css/app/layout.css?v=1775467689480 404 in 81ms
+ GET /_next/static/chunks/main-app.js?v=1775467689480 404 in 90ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 88ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 87ms
+ GET /_next/static/chunks/app/layout.js 404 in 86ms
+ GET /database 200 in 106ms
+ GET /_next/static/css/app/layout.css?v=1775467690695 404 in 80ms
+ GET /_next/static/chunks/app/database/page.js 404 in 95ms
+ GET /_next/static/chunks/app/layout.js 404 in 96ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 99ms
+ GET /_next/static/chunks/main-app.js?v=1775467690695 404 in 104ms
+ ✓ Compiled in 1494ms (1138 modules)
+ ✓ Compiled in 1861ms (2066 modules)
+ GET /database 200 in 833ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 908ms (2049 modules)
+ GET /_next/static/css/app/layout.css?v=1775467904354 404 in 1300ms
+ GET /_next/static/chunks/main-app.js?v=1775467904354 404 in 1309ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 1310ms
+ GET /database 200 in 444ms
+ GET /_next/static/css/app/layout.css?v=1775467908326 404 in 51ms
+ GET /_next/static/chunks/main-app.js?v=1775467908326 404 in 53ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 51ms
+ GET /database 200 in 88ms
+ GET /_next/static/css/app/layout.css?v=1775467912306 404 in 36ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 53ms
+ GET /_next/static/chunks/main-app.js?v=1775467912306 404 in 53ms
+ GET /db/postgresql/single 200 in 69ms
+ GET /_next/static/css/app/layout.css?v=1775467914617 404 in 68ms
+ GET /_next/static/chunks/main-app.js?v=1775467914617 404 in 80ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 79ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 79ms
+ GET /database 200 in 93ms
+ GET /_next/static/css/app/layout.css?v=1775467915875 404 in 48ms
+ GET /_next/static/chunks/main-app.js?v=1775467915875 404 in 63ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 64ms
+ GET /database 200 in 123ms
+ GET /_next/static/css/app/layout.css?v=1775467916738 404 in 51ms
+ GET /_next/static/chunks/main-app.js?v=1775467916738 404 in 59ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 58ms
+ GET /db/postgresql/single 200 in 65ms
+ GET /_next/static/css/app/layout.css?v=1775467923805 404 in 59ms
+ GET /_next/static/chunks/main-app.js?v=1775467923805 404 in 61ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 59ms
+ GET /_next/static/chunks/app/db/postgresql/single/page.js 404 in 59ms
+ GET /database 200 in 104ms
+ GET /_next/static/css/app/layout.css?v=1775467926291 404 in 28ms
+ GET /_next/static/chunks/main-app.js?v=1775467926291 404 in 49ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 48ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.4s (936 modules)
+ GET / 307 in 3124ms

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useGuideStore } from '@/stores/guideStore'
 
 /* ── PostgreSQL 서브메뉴 ── */
 const PG_SUBMENU = [
@@ -83,7 +84,7 @@ export default function Sidebar() {
           <button style={{ ...iconBtn, color: pathname.startsWith(n.href) ? '#60a5fa' : '#7c8db5' }}>{n.icon}</button>
         </Link>
       ))}
-      <div style={{ height: 8 }} />
+      <GuideToggleButton collapsed />
     </aside>
   )
 
@@ -238,6 +239,8 @@ export default function Sidebar() {
 
       </nav>
 
+      <GuideToggleButton />
+
       {/* 하단 프로필 */}
       <div style={{ borderTop: '1px solid #252d47', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
         <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#2a3558', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>👤</div>
@@ -267,6 +270,53 @@ const iconBtn: React.CSSProperties = {
 }
 
 /* ── 아이콘 ── */
+/* ── 가이드 토글 버튼 ── */
+function GuideToggleButton({ collapsed }: { collapsed?: boolean }) {
+  const { isOpen, toggle } = useGuideStore()
+  if (collapsed) return (
+    <div style={{ borderTop: '1px solid #252d47', paddingTop: 8, paddingBottom: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <button
+        onClick={toggle}
+        title="기능 가이드"
+        style={{ ...iconBtn, color: isOpen ? '#60a5fa' : '#7c8db5', background: isOpen ? 'rgba(96,165,250,.12)' : 'none', borderRadius: 6 }}
+      >
+        <BookIcon />
+      </button>
+    </div>
+  )
+  return (
+    <div style={{ borderTop: '1px solid #252d47', padding: '8px 10px', flexShrink: 0 }}>
+      <button
+        onClick={toggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          width: '100%', padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
+          background: isOpen ? 'rgba(96,165,250,.15)' : 'rgba(255,255,255,.04)',
+          border: isOpen ? '1px solid rgba(96,165,250,.3)' : '1px solid transparent',
+          transition: 'all .15s',
+        }}
+      >
+        <div style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, background: isOpen ? '#1d4ed8' : '#2a3558', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <BookIcon />
+        </div>
+        <div style={{ textAlign: 'left' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: isOpen ? '#93c5fd' : '#c8d0e8' }}>기능 가이드</div>
+          <div style={{ fontSize: 10, color: '#4b5a82' }}>{isOpen ? '가이드 닫기' : '기능 설명 열기'}</div>
+        </div>
+        {isOpen && <span style={{ marginLeft: 'auto', fontSize: 10, background: '#1d4ed8', color: '#fff', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>ON</span>}
+      </button>
+    </div>
+  )
+}
+
+function BookIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+    </svg>
+  )
+}
+
 function MenuIcon()     { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg> }
 function HomeIcon()     { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg> }
 function DashIcon()     { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> }
