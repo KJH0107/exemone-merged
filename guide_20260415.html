@@ -1,0 +1,1392 @@
+<!-- CDN 필요: React 18, Babel Standalone -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>exemONE DB 모니터링 기능 가이드</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f5f8; overflow: hidden; }
+  :root {
+    --sidebar-bg: #1a2035;
+    --main-bg: #f3f5f8;
+    --border: #e3e7ea;
+    --border-light: #f0f2f4;
+    --text-muted: #94a3b8;
+    --color-blue: #2563eb;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useReducer, useContext, createContext, useRef, useCallback } = React;
+
+// ═══════════════════════════════════════════════════════════
+// FEATURES DATA
+// ═══════════════════════════════════════════════════════════
+const PAGE_FEATURES = {
+  database: {
+    key: 'database', label: '오버뷰', icon: '🗄',
+    description: '전체 Instance 관점 기본 모니터링 화면입니다. DB 인스턴스의 상태, 성능 지표, 목록을 통합하여 제공합니다.',
+    features: [
+      {
+        id: 'instance-card', label: 'Instance Card', icon: '🟦',
+        highlightArea: 'summary',
+        summary: 'Instance의 상태별 개수를 보여줍니다.',
+        description: '전체 / Active / Warning / Critical / No Signal 상태별 인스턴스 수를 카드로 표시합니다. 카드 클릭 시 해당 상태의 인스턴스만 필터링하여 Instance List에 표시됩니다.',
+        tip: '카드 숫자를 클릭하면 해당 상태 인스턴스만 즉시 필터링됩니다.',
+        challenge: {
+          prompt: 'Critical 카드를 클릭해보세요',
+          action: '상단 Summary Card 중 빨간색 Critical 카드를 직접 클릭해보세요. 아래 목록이 어떻게 바뀌나요?',
+          success: '정확합니다! Critical 상태 인스턴스만 필터링되었습니다. 이렇게 카드 하나로 즉각 범위를 좁힐 수 있습니다.',
+          quiz: {
+            question: 'Critical 상태 카드를 클릭하면 어떤 일이 일어나나요?',
+            options: ['인스턴스가 재시작됩니다','Critical 인스턴스만 목록에 필터링됩니다','알람이 해제됩니다','상세 설정 화면이 열립니다'],
+            answer: 1,
+          },
+        },
+        relatedFeatures: [
+          { id: 'instance-list', label: 'Instance List', reason: '카드 클릭 시 해당 상태가 목록에서 바로 필터링됩니다.' },
+          { id: 'filters', label: 'Filters', reason: 'DB 타입·그룹 조합 필터로 더 정밀하게 범위를 좁힐 수 있습니다.' },
+        ],
+      },
+      {
+        id: 'filters', label: 'Filters', icon: '🔽',
+        highlightArea: 'filter',
+        summary: 'Instance 화면의 Filters 항목을 선택합니다.',
+        description: 'DB 타입(PostgreSQL, MySQL, Oracle 등)과 운영 그룹별로 인스턴스를 필터링할 수 있습니다. 복수 선택이 가능하며 조합 필터로 원하는 인스턴스 목록을 빠르게 조회할 수 있습니다.',
+        tip: '멀티 선택으로 여러 DB 타입을 동시에 조회할 수 있습니다.',
+        challenge: {
+          prompt: '왼쪽 Filter에서 PostgreSQL만 선택해보세요',
+          action: '화면 왼쪽 Filter 패널에서 DB 타입을 PostgreSQL 하나만 선택해보세요. 헥사 맵과 목록이 함께 바뀌는지 확인하세요.',
+          success: '잘 하셨습니다! 필터를 적용하면 맵과 목록이 동시에 좁혀지는 것을 확인하셨나요?',
+          quiz: {
+            question: 'Filters에서 여러 DB 타입을 동시에 선택할 수 있나요?',
+            options: ['아니요, 하나만 선택 가능합니다','네, 멀티 선택이 가능합니다','PostgreSQL만 멀티 선택 가능합니다','그룹 필터만 멀티 선택됩니다'],
+            answer: 1,
+          },
+        },
+        relatedFeatures: [
+          { id: 'instance-map', label: 'Instance Map', reason: '필터 적용 결과가 헥사 맵에도 즉시 반영됩니다.' },
+          { id: 'instance-list', label: 'Instance List', reason: '필터링된 인스턴스가 목록에 표시됩니다.' },
+        ],
+      },
+      {
+        id: 'instance-map', label: 'Instance Map', icon: '🗺',
+        highlightArea: 'hexgrid',
+        summary: '모니터링 대상별 상태를 헥사 맵으로 보여줍니다.',
+        description: '각 DB 인스턴스를 헥사곤(육각형) 아이콘으로 시각화합니다. 색상으로 상태를 직관적으로 파악할 수 있습니다. Active(파랑) / Warning(노랑) / Critical(빨강) / No Signal(회색)으로 구분됩니다.',
+        tip: '헥사곤 위에 마우스를 올리면 인스턴스명, CPU, Memory 수치를 미리 볼 수 있습니다.',
+        steps: ['헥사곤 색상으로 전체 상태 파악','빨간 헥사곤 클릭 → Critical 인스턴스 상세 진입','상세 화면에서 CPU / 세션 추이 확인'],
+        challenge: {
+          prompt: '헥사 맵에서 인스턴스를 찾아보세요',
+          action: '헥사곤 위에 마우스를 올려보세요. CPU / Memory 수치가 툴팁으로 보이나요? 빨간 헥사곤이 있다면 클릭해보세요.',
+          success: '헥사 맵을 사용해보셨군요! 색상만으로 전체 상태를 순식간에 파악할 수 있습니다.',
+          quiz: {
+            question: '헥사 맵에서 빨간색 헥사곤이 의미하는 상태는?',
+            options: ['Active — 정상 운영 중','Warning — 주의 필요','Critical — 즉각 대응 필요','No Signal — 연결 끊김'],
+            answer: 2,
+          },
+        },
+        relatedFeatures: [
+          { id: 'instance-list', label: 'Instance List', reason: '헥사곤 클릭 시 동일한 인스턴스의 상세 목록 정보를 테이블에서 확인할 수 있습니다.' },
+        ],
+      },
+      {
+        id: 'instance-list', label: 'Instance List', icon: '📋',
+        highlightArea: 'table',
+        summary: 'Instance의 목록을 보여줍니다.',
+        description: '모든 DB 인스턴스를 테이블로 표시합니다. 인스턴스명, DB 타입, 그룹, CPU / Memory 사용률, 활성 세션 수, 현재 상태를 한눈에 확인합니다. 컬럼 헤더 클릭으로 정렬이 가능합니다.',
+        tip: 'CPU 컬럼 클릭으로 내림차순 정렬 시 부하가 높은 인스턴스를 가장 먼저 확인할 수 있습니다.',
+        steps: ['목록에서 이상 인스턴스 식별','인스턴스명 클릭 → 상세 모니터링 화면','CPU / Memory 수치, 세션, 상태 집중 확인'],
+        challenge: {
+          prompt: 'CPU 높은 인스턴스를 찾아보세요',
+          action: '목록 상단의 "CPU Usage" 컬럼 헤더를 클릭해 내림차순 정렬해보세요. 가장 부하가 높은 인스턴스가 맨 위로 오나요?',
+          success: '정렬 기능을 사용하셨군요! 실제 장애 대응 시 이 방법으로 문제 인스턴스를 가장 먼저 발견합니다.',
+          quiz: {
+            question: '장애 상황에서 가장 빠르게 문제 인스턴스를 찾는 방법은?',
+            options: ['목록을 위에서 아래로 순서대로 읽는다','CPU Usage 컬럼을 내림차순 정렬한다','인스턴스명을 알파벳순으로 정렬한다','No Signal 카드를 먼저 확인한다'],
+            answer: 1,
+          },
+        },
+        relatedFeatures: [
+          { id: 'instance-map', label: 'Instance Map', reason: '목록과 맵은 동일 데이터를 다른 시각으로 보여줍니다.' },
+        ],
+      },
+    ],
+  },
+  'database-detail': {
+    key: 'database-detail', label: 'Instance Detail', icon: '🖥',
+    description: 'Instance 맵 또는 목록에서 인스턴스를 클릭하면 열리는 상세 모니터링 슬라이드입니다. 탭별로 정보, 메트릭, 세션, SQL, Lock, 알람, 파라미터를 확인할 수 있습니다.',
+    features: [
+      {
+        id: 'drawer-info', label: '정보 탭 (Information)', icon: '📄',
+        highlightArea: 'drawer-info',
+        summary: '인스턴스 Agent·Machine 기본 정보를 확인합니다.',
+        description: '선택한 인스턴스의 기본 정보를 보여줍니다. Agent 섹션에는 인스턴스명, 연결 상태, Agent 버전, 인스턴스 그룹명, DB 버전, 기동 시간이 표시됩니다. Machine 섹션에는 호스트명, Host IP, 운영체제, 커널 버전이 표시됩니다.',
+        tip: '인스턴스 접속 불가 시 Status와 Agent Version 확인부터 시작하세요.',
+        relatedFeatures: [
+          { id: 'drawer-metric', label: '메트릭 탭', reason: '기본 정보 확인 후 CPU·Memory 실시간 지표로 이어서 점검합니다.' },
+          { id: 'drawer-host-process', label: '호스트 프로세스 목록', reason: 'Agent가 정상인데 응답이 느리다면 OS 레벨 프로세스를 확인하세요.' },
+        ],
+      },
+      {
+        id: 'drawer-metric', label: '메트릭 탭 (Metric)', icon: '📈',
+        highlightArea: 'drawer-metric',
+        summary: 'CPU, Memory, TPS, Active Session 지표를 시계열로 모니터링합니다.',
+        description: '선택한 인스턴스의 핵심 성능 지표를 실시간 차트로 표시합니다. Global Time 설정으로 모니터링 기간을 조절할 수 있으며, 기본값은 최근 5분입니다. CPU Usage, Memory 사용률, TPS(초당 트랜잭션), Active Session 수 등 DB 타입에 맞는 주요 지표가 제공됩니다.',
+        tip: 'Global Time을 1~10분으로 좁히면 장애 발생 시점을 정밀하게 파악할 수 있습니다.',
+        steps: ['Global Time에서 조회 기간 설정 (실시간 또는 과거 구간)','CPU · Memory · TPS 차트에서 급등 구간 확인','이상 구간 시각을 기록하여 Active Session / SQL 탭과 교차 분석'],
+        relatedFeatures: [
+          { id: 'drawer-active-session', label: '액티브 세션 탭', reason: 'CPU·TPS 급등 시 원인이 되는 세션을 즉시 확인합니다.' },
+          { id: 'drawer-alert', label: '알람 탭', reason: '메트릭 임계치 초과 시 발생한 알람 이력과 시각을 교차 분석합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-active-session', label: '액티브 세션 탭 (Active Session)', icon: '🔗',
+        highlightArea: 'drawer-active-session',
+        summary: '현재 실행 중인 세션 목록과 Wait Event를 실시간 확인합니다.',
+        description: '인스턴스에 접속하여 현재 활동 중인 세션 목록을 보여줍니다. PID(Thread ID), 사용자명, 앱명, Client 주소, SQL 수행시간(Elapsed Time), Wait Event, 상태(State)를 확인할 수 있습니다. PID 클릭 시 Session Detail Slide로 이동하여 해당 세션의 이력과 수행 SQL을 상세 분석할 수 있습니다.',
+        tip: 'Wait Event가 "Lock"인 세션이 여러 개 보인다면 Lock 정보 탭에서 대기 관계를 확인하세요.',
+        steps: ['상태(State)가 active인 세션 목록 확인','Elapsed Time이 긴 세션 식별','PID 클릭 → Session Detail Slide에서 SQL 이력 분석'],
+        challenge: {
+          prompt: 'PID를 클릭해 세션 이력을 확인해보세요',
+          action: '아래 세션 목록에서 Elapsed Time이 가장 긴 세션의 PID를 클릭해보세요. Session Information 화면이 열리나요?',
+          success: '완료! Session Detail에서 해당 세션이 수행한 SQL 이력 전체를 추적할 수 있습니다.',
+          quiz: {
+            question: 'Wait Event가 "Lock"인 세션을 발견했을 때 다음 행동은?',
+            options: ['세션을 즉시 Kill한다','Lock 정보 탭에서 Blocker 세션을 확인한다','인스턴스를 재시작한다','알람 탭을 먼저 확인한다'],
+            answer: 1,
+          },
+        },
+        relatedFeatures: [
+          { id: 'drawer-sql-list', label: 'SQL 목록 탭', reason: '세션에서 수행 중인 SQL의 전체 성능 통계를 분석합니다.' },
+          { id: 'drawer-lock', label: 'Lock 정보 탭', reason: 'Wait Event가 Lock인 세션이 있다면 Lock 관계도를 확인합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-sql-list', label: 'SQL 목록 탭 (SQL List)', icon: '🗂',
+        highlightArea: 'drawer-sql-list',
+        summary: '인스턴스에서 수행된 SQL의 성능 통계를 분석합니다.',
+        description: '인스턴스에서 수행된 SQL의 실행 횟수, 평균 수행시간, 총 수행시간, Buffer Hit 비율 등 성능 통계를 제공합니다. SQL ID 클릭 시 SQL Detail Slide가 열려 Full Text, 실행 계획(Plan), Trend, Sampling 이력을 확인할 수 있습니다.',
+        tip: '평균 수행시간(Avg Elapsed)이 높은 SQL을 우선 튜닝 대상으로 삼으세요.',
+        steps: ['Elapsed Time 기준 내림차순 정렬','상위 SQL ID 클릭 → SQL Detail Slide 진입','Full Text · Plan 탭에서 실행 계획 분석'],
+        relatedFeatures: [
+          { id: 'drawer-active-session', label: '액티브 세션 탭', reason: '현재 실행 중인 세션이 수행하는 SQL을 세션 단위로 추적합니다.' },
+          { id: 'drawer-lock', label: 'Lock 정보 탭', reason: '긴 SQL이 Lock을 유발하는지 Lock 대기 관계에서 확인합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-lock', label: 'Lock 정보 탭 (Lock Info)', icon: '🔒',
+        highlightArea: 'drawer-lock',
+        summary: 'Lock 대기 세션과 원인 세션의 관계를 파악합니다.',
+        description: 'Lock을 보유한 세션(Blocker)과 대기 중인 세션(Waiter) 관계를 테이블로 보여줍니다. Lock이 오랫동안 해소되지 않으면 연쇄 대기가 발생하여 전체 성능 저하로 이어질 수 있습니다. Kill Session 기능으로 원인 세션을 강제 종료할 수 있습니다.',
+        tip: 'Lock Waiter 체인이 3개 이상이면 원인 세션(Blocker) 즉시 처리가 필요합니다.',
+        relatedFeatures: [
+          { id: 'drawer-active-session', label: '액티브 세션 탭', reason: 'Blocker 세션의 PID를 클릭해 해당 세션의 수행 이력을 분석합니다.' },
+          { id: 'drawer-alert', label: '알람 탭', reason: 'Lock 지속 시 알람이 발생하며, 발생 시각과 함께 추적합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-alert', label: '알람 탭 (Alert)', icon: '🔔',
+        highlightArea: 'drawer-alert',
+        summary: '해당 인스턴스에서 발생한 알람 이력을 확인합니다.',
+        description: '해당 인스턴스에 설정된 알람 규칙과 발생 이력을 보여줍니다. 알람명, 심각도(Critical/Warning/Info), 발생 시각, 지표값을 확인할 수 있으며, 메트릭 탭 차트와 시각을 비교하여 장애 원인을 분석할 수 있습니다.',
+        tip: '알람 발생 시각과 메트릭 탭 차트의 급등 구간을 반드시 교차 확인하세요.',
+        relatedFeatures: [
+          { id: 'drawer-metric', label: '메트릭 탭', reason: '알람 발생 시각을 메트릭 차트 급등 구간과 교차 분석합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-parameter', label: '파라미터 탭 (Parameter)', icon: '⚙️',
+        highlightArea: 'drawer-parameter',
+        summary: 'DB 파라미터 설정값을 조회하고 변경 이력을 관리합니다.',
+        description: 'DB 인스턴스에 적용된 파라미터 목록과 현재 설정값(Current Value)을 보여줍니다. Parameter Name 클릭 시 Parameter Detail Slide에서 파라미터 상세 설명과 권장값을 확인할 수 있습니다. 우측에 파라미터 목록을 불러온 시각이 표시됩니다.',
+        tip: '파라미터 변경 후 반드시 이 탭에서 실제 적용 여부를 확인하세요.',
+        relatedFeatures: [
+          { id: 'drawer-info', label: '정보 탭', reason: 'DB 버전에 따라 지원 파라미터가 달라지므로 버전 확인 후 참고합니다.' },
+          { id: 'drawer-metric', label: '메트릭 탭', reason: '파라미터 변경 후 성능 지표 변화를 메트릭 탭에서 확인합니다.' },
+        ],
+      },
+      {
+        id: 'drawer-host-process', label: '호스트 프로세스 목록 탭', icon: '🖥',
+        highlightArea: 'drawer-host-process',
+        summary: 'DB 서버 호스트에서 실행 중인 OS 프로세스를 모니터링합니다.',
+        description: 'DB 서버 OS 레벨에서 실행 중인 프로세스 목록을 보여줍니다. PID, PPID, 프로세스명, CPU 사용률, 가상/물리 메모리 사용량을 실시간으로 확인합니다. DB 프로세스 외에 비정상적으로 CPU나 메모리를 점유하는 외부 프로세스 탐지에 유용합니다.',
+        tip: 'DB 쿼리 성능과 무관하게 CPU 사용률이 높다면 이 탭에서 OS 프로세스 점유를 먼저 확인하세요.',
+        relatedFeatures: [
+          { id: 'drawer-metric', label: '메트릭 탭', reason: 'CPU 급등이 DB 처리량 문제인지 OS 프로세스 문제인지 메트릭과 비교합니다.' },
+        ],
+      },
+    ],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// MOCK DATA — 12 DB instances
+// ═══════════════════════════════════════════════════════════
+const MOCK_INSTANCES = [
+  { id: '1',  name: 'pg-prod-01',     dbType: 'postgresql', status: 'active',    cpuUsage: 42, memoryUsed: 58, activeSessions: 12, group: 'production' },
+  { id: '2',  name: 'pg-prod-02',     dbType: 'postgresql', status: 'warning',   cpuUsage: 71, memoryUsed: 79, activeSessions: 31, group: 'production' },
+  { id: '3',  name: 'pg-replica-01',  dbType: 'postgresql', status: 'active',    cpuUsage: 18, memoryUsed: 44, activeSessions: 5,  group: 'production' },
+  { id: '4',  name: 'mysql-app-01',   dbType: 'mysql',      status: 'critical',  cpuUsage: 93, memoryUsed: 88, activeSessions: 67, group: 'application' },
+  { id: '5',  name: 'mysql-app-02',   dbType: 'mysql',      status: 'active',    cpuUsage: 35, memoryUsed: 52, activeSessions: 9,  group: 'application' },
+  { id: '6',  name: 'mysql-stage',    dbType: 'mysql',      status: 'active',    cpuUsage: 11, memoryUsed: 33, activeSessions: 2,  group: 'staging' },
+  { id: '7',  name: 'oracle-erp-01',  dbType: 'oracle',     status: 'warning',   cpuUsage: 68, memoryUsed: 73, activeSessions: 44, group: 'erp' },
+  { id: '8',  name: 'oracle-erp-02',  dbType: 'oracle',     status: 'critical',  cpuUsage: 87, memoryUsed: 91, activeSessions: 58, group: 'erp' },
+  { id: '9',  name: 'pg-analytics',   dbType: 'postgresql', status: 'active',    cpuUsage: 55, memoryUsed: 62, activeSessions: 18, group: 'analytics' },
+  { id: '10', name: 'mysql-log-db',   dbType: 'mysql',      status: 'nosignal',  cpuUsage: 0,  memoryUsed: 0,  activeSessions: 0,  group: 'logging' },
+  { id: '11', name: 'oracle-report',  dbType: 'oracle',     status: 'active',    cpuUsage: 28, memoryUsed: 47, activeSessions: 7,  group: 'reporting' },
+  { id: '12', name: 'pg-dev-01',      dbType: 'postgresql', status: 'nosignal',  cpuUsage: 0,  memoryUsed: 0,  activeSessions: 0,  group: 'development' },
+];
+
+// Mock Active Sessions
+const MOCK_SESSIONS = [
+  { pid: '23451', user: 'appuser',  sql: 'SELECT * FROM orders WHERE status = ? AND created_at > ?', elapsed: '12.4s', waitEvent: 'Lock',       state: 'active' },
+  { pid: '23452', user: 'appuser',  sql: 'UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ?', elapsed: '8.1s',  waitEvent: 'Lock',       state: 'active' },
+  { pid: '23453', user: 'reporter', sql: 'SELECT COUNT(*), SUM(amount) FROM transactions GROUP BY date', elapsed: '5.7s',  waitEvent: 'CPU',        state: 'active' },
+  { pid: '23454', user: 'appuser',  sql: 'INSERT INTO audit_log (user_id, action, ts) VALUES (?, ?, NOW())', elapsed: '0.3s',  waitEvent: '-',          state: 'active' },
+  { pid: '23455', user: 'batchjob', sql: 'DELETE FROM temp_data WHERE expire_at < NOW()', elapsed: '22.9s', waitEvent: 'Disk I/O',   state: 'active' },
+  { pid: '23456', user: 'monitor',  sql: 'SELECT pg_stat_activity.pid, query FROM pg_stat_activity', elapsed: '0.1s',  waitEvent: '-',          state: 'idle' },
+];
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE STORE — useReducer
+// ═══════════════════════════════════════════════════════════
+const initialState = {
+  isOpen: false,
+  activeFeature: null,
+  isDrawerOpen: false,
+  pendingDetailFeature: null,
+  completedChallenges: [],
+  selectedInstance: null,
+  drawerTab: '정보',
+};
+
+function guideReducer(state, action) {
+  switch (action.type) {
+    case 'TOGGLE_GUIDE':
+      return { ...state, isOpen: !state.isOpen, activeFeature: null };
+    case 'SET_FEATURE':
+      return { ...state, activeFeature: action.id };
+    case 'OPEN_DRAWER':
+      return { ...state, isDrawerOpen: true, drawerTab: '정보', activeFeature: state.pendingDetailFeature || null, pendingDetailFeature: null };
+    case 'CLOSE_DRAWER':
+      return { ...state, isDrawerOpen: false, selectedInstance: null, activeFeature: null };
+    case 'SET_PENDING':
+      return { ...state, pendingDetailFeature: action.id };
+    case 'COMPLETE_CHALLENGE':
+      if (state.completedChallenges.includes(action.id)) return state;
+      return { ...state, completedChallenges: [...state.completedChallenges, action.id] };
+    case 'SELECT_INSTANCE':
+      return { ...state, selectedInstance: action.instance, isDrawerOpen: true, drawerTab: '정보',
+        activeFeature: state.isOpen ? (state.pendingDetailFeature || 'drawer-info') : null,
+        pendingDetailFeature: null };
+    case 'SET_DRAWER_TAB':
+      return { ...state, drawerTab: action.tab };
+    case 'CLOSE_GUIDE':
+      return { ...state, isOpen: false, activeFeature: null };
+    default:
+      return state;
+  }
+}
+
+const GuideCtx = createContext(null);
+function useGuide() { return useContext(GuideCtx); }
+
+// ═══════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════
+const GUIDE_PANEL_WIDTH = 360;
+const DRAWER_WIDTH = 680;
+const DRAWER_TABS = ['정보','메트릭','액티브 세션','SQL 목록','Lock 정보','알람','파라미터','호스트 프로세스 목록'];
+const STATUS_CONFIG = {
+  active:   { label: 'Active',    bg: '#d1fae5', color: '#059669', hex: '#10b981' },
+  warning:  { label: 'Warning',   bg: '#fef3c7', color: '#d97706', hex: '#f59e0b' },
+  critical: { label: 'Critical',  bg: '#fee2e2', color: '#dc2626', hex: '#ef4444' },
+  nosignal: { label: 'No Signal', bg: '#f3f4f6', color: '#6b7280', hex: '#9ca3af' },
+};
+const DB_LABEL = { postgresql: 'PostgreSQL', mysql: 'MySQL', oracle: 'Oracle' };
+
+// ═══════════════════════════════════════════════════════════
+// THEMES
+// ═══════════════════════════════════════════════════════════
+const THEMES = {
+  blue: {
+    headerBg: '#eff6ff', headerBorder: '#bfdbfe', accent: '#2563eb',
+    accentLight: '#dbeafe', accentText: '#1e40af',
+    badge: { bg: '#dbeafe', color: '#1e40af' },
+    step: '#2563eb',
+    tip: { bg: '#f0f9ff', border: '#bae6fd', left: '#0ea5e9', label: '#0369a1', text: '#0c4a6e' },
+    back: '#2563eb',
+  },
+  teal: {
+    headerBg: '#f0fdfa', headerBorder: '#99f6e4', accent: '#0d9488',
+    accentLight: '#ccfbf1', accentText: '#134e4a',
+    badge: { bg: '#ccfbf1', color: '#0f766e' },
+    step: '#0d9488',
+    tip: { bg: '#f0fdfa', border: '#99f6e4', left: '#14b8a6', label: '#0f766e', text: '#134e4a' },
+    back: '#0d9488',
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE HIGHLIGHT WRAPPER
+// ═══════════════════════════════════════════════════════════
+function GuideHighlight({ id, children, style = {} }) {
+  const { state, dispatch } = useGuide();
+  if (!state.isOpen) return <div style={style}>{children}</div>;
+
+  const pageFeatures = state.isDrawerOpen ? PAGE_FEATURES['database-detail'] : PAGE_FEATURES['database'];
+  const feature = pageFeatures?.features.find(f => f.highlightArea === id);
+  if (!feature) return <div style={style}>{children}</div>;
+
+  const isActive = state.activeFeature === feature.id;
+  const isPending = state.pendingDetailFeature === feature.id;
+
+  const shadowColor = isPending ? '#0d9488' : '#2563eb';
+  const boxShadow = isActive
+    ? `0 0 0 3px ${shadowColor}, 0 0 0 6px ${shadowColor}33`
+    : `0 0 0 2px ${shadowColor}66`;
+
+  return (
+    <div
+      style={{
+        ...style,
+        boxShadow,
+        borderRadius: 8,
+        cursor: 'pointer',
+        transition: 'box-shadow .2s',
+        position: 'relative',
+      }}
+      onClick={() => {
+        if (isActive) dispatch({ type: 'COMPLETE_CHALLENGE', id: feature.id });
+        else dispatch({ type: 'SET_FEATURE', id: feature.id });
+      }}
+    >
+      {children}
+      {isActive && (
+        <div style={{
+          position: 'absolute', top: -28, left: 0, zIndex: 20,
+          background: shadowColor, color: '#fff',
+          fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: '4px 4px 0 0',
+          pointerEvents: 'none', whiteSpace: 'nowrap',
+        }}>
+          {feature.label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHALLENGE CARD
+// ═══════════════════════════════════════════════════════════
+function ChallengeCard({ featureId, challenge }) {
+  const { state, dispatch } = useGuide();
+  const done = state.completedChallenges.includes(featureId);
+  const [quizSelected, setQuizSelected] = useState(null);
+  const quizAnswered = quizSelected !== null;
+  const quizCorrect = quizSelected === challenge.quiz?.answer;
+
+  return (
+    <div style={{ border: done ? '2px solid #10b981' : '2px dashed #f59e0b', borderRadius: 12, overflow: 'hidden', marginTop: 4 }}>
+      <div style={{ background: done ? '#ecfdf5' : '#fffbeb', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: done ? '1px solid #a7f3d0' : '1px solid #fde68a' }}>
+        <span style={{ fontSize: 18 }}>{done ? '✅' : '🎯'}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: done ? '#065f46' : '#92400e' }}>{done ? '완료!' : '직접 해보세요'}</div>
+          <div style={{ fontSize: 11, color: done ? '#059669' : '#b45309', marginTop: 1 }}>{done ? '이 기능을 직접 체험했습니다' : challenge.prompt}</div>
+        </div>
+      </div>
+
+      {!done && (
+        <div style={{ padding: '12px 14px', background: '#fff' }}>
+          <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.75, margin: '0 0 12px', wordBreak: 'keep-all' }}>{challenge.action}</p>
+          {challenge.quiz && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>💬 {challenge.quiz.question}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {challenge.quiz.options.map((opt, i) => {
+                  const isSelected = quizSelected === i;
+                  const isCorrect = i === challenge.quiz.answer;
+                  const bg = !quizAnswered ? (isSelected ? '#eff6ff' : '#f9fafb') : (isCorrect ? '#ecfdf5' : isSelected ? '#fef2f2' : '#f9fafb');
+                  const border = !quizAnswered ? (isSelected ? '#3b82f6' : '#e5e7eb') : (isCorrect ? '#10b981' : isSelected ? '#ef4444' : '#e5e7eb');
+                  const color = !quizAnswered ? '#374151' : (isCorrect ? '#065f46' : isSelected ? '#991b1b' : '#9ca3af');
+                  return (
+                    <button key={i} disabled={quizAnswered} onClick={() => setQuizSelected(i)} style={{
+                      width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: 7,
+                      border: `1.5px solid ${border}`, background: bg, color, fontSize: 12,
+                      cursor: quizAnswered ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                      fontWeight: quizAnswered && isCorrect ? 700 : 400,
+                    }}>
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: border, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+                        {quizAnswered ? (isCorrect ? '✓' : isSelected ? '✗' : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}
+                      </span>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {quizAnswered && (
+                <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 7, background: quizCorrect ? '#ecfdf5' : '#fef2f2', fontSize: 12, color: quizCorrect ? '#065f46' : '#991b1b', fontWeight: 600, lineHeight: 1.5 }}>
+                  {quizCorrect ? '✅ 정답입니다!' : `❌ 정답은 "${challenge.quiz.options[challenge.quiz.answer]}"입니다.`}
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={() => dispatch({ type: 'COMPLETE_CHALLENGE', id: featureId })} style={{ width: '100%', padding: '9px', borderRadius: 8, background: '#f59e0b', border: 'none', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            해봤어요! ✓
+          </button>
+        </div>
+      )}
+      {done && (
+        <div style={{ padding: '10px 14px', background: '#ecfdf5', fontSize: 13, color: '#065f46', lineHeight: 1.75, wordBreak: 'keep-all' }}>{challenge.success}</div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE PANEL — ListView
+// ═══════════════════════════════════════════════════════════
+function SectionLabel({ children }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 1.2, marginBottom: 10, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ display: 'inline-block', width: 3, height: 12, background: '#cbd5e1', borderRadius: 2 }} />
+      {children}
+    </div>
+  );
+}
+
+function ListView({ pageFeatures, theme, onSelect, onClose }) {
+  const { state } = useGuide();
+  const t = THEMES[theme];
+  const detailFeatures = PAGE_FEATURES['database-detail'];
+  const completed = state.completedChallenges;
+  const challenges = pageFeatures.features.filter(f => f.challenge);
+  const completedCount = challenges.filter(f => completed.includes(f.id)).length;
+
+  return (
+    <>
+      {/* 헤더 */}
+      <div style={{ padding: '18px 20px 16px', borderBottom: `1px solid ${t.headerBorder}`, background: t.headerBg, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 22 }}>{pageFeatures.icon}</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', letterSpacing: -0.3 }}>{pageFeatures.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, background: t.badge.bg, color: t.badge.color, padding: '3px 10px', borderRadius: 99, letterSpacing: 0.2 }}>기능 가이드</span>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#94a3b8', padding: '4px 6px' }}>✕</button>
+        </div>
+        <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, wordBreak: 'keep-all' }}>{pageFeatures.description}</p>
+
+        {/* 진행 바 */}
+        {challenges.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>챌린지 진행도</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: t.accent }}>{completedCount} / {challenges.length} 완료</span>
+            </div>
+            <div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${(completedCount / challenges.length) * 100}%`, background: t.accent, borderRadius: 3, transition: 'width .4s' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 기능 목록 */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 14px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>기능 목록 — 클릭하면 화면에서 위치 확인</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {pageFeatures.features.map(f => {
+            const isDone = completed.includes(f.id);
+            return (
+              <button key={f.id} onClick={() => onSelect(f.id)} style={{
+                width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 10,
+                border: `1.5px solid ${isDone ? '#a7f3d0' : '#e2e8f0'}`, background: isDone ? '#f0fdf4' : '#fff',
+                display: 'flex', alignItems: 'center', gap: 12, transition: 'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.transform = 'translateX(2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = isDone ? '#a7f3d0' : '#e2e8f0'; e.currentTarget.style.transform = 'translateX(0)'; }}>
+                <span style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{f.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>{f.label}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.summary}</div>
+                </div>
+                {isDone && <span style={{ fontSize: 14, color: '#10b981', flexShrink: 0 }}>✓</span>}
+                <span style={{ fontSize: 18, color: '#cbd5e1', flexShrink: 0 }}>›</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 다음 단계 — database 페이지만 */}
+      {pageFeatures.key === 'database' && (
+        <div style={{ padding: '14px 14px 10px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>다음 단계 — Instance Detail 가이드</div>
+          <div style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: 10, padding: '10px 14px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>🖥</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#134e4a' }}>인스턴스를 클릭하면 이어집니다</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#0f766e', lineHeight: 1.7, marginBottom: 10, wordBreak: 'keep-all' }}>목록 또는 맵에서 인스턴스를 클릭하면 오른쪽 슬라이드가 열리고, 가이드가 자동으로 Instance Detail 모드로 전환됩니다.</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {detailFeatures.features.map(f => (
+                <span key={f.id} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 99, background: '#ccfbf1', color: '#0f766e', fontWeight: 600 }}>{f.icon} {f.label.split(' ')[0]}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '10px 20px', borderTop: `1px solid ${t.headerBorder}`, background: t.headerBg, textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, wordBreak: 'keep-all' }}>기능을 클릭하면 화면에서 해당 영역이 강조됩니다</div>
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE PANEL — DetailView
+// ═══════════════════════════════════════════════════════════
+function DetailView({ feature, pageFeatures, theme, onBack, onSelect, onClose }) {
+  const { dispatch } = useGuide();
+  const t = THEMES[theme];
+  const idx = pageFeatures.features.findIndex(f => f.id === feature.id);
+  const prev = idx > 0 ? pageFeatures.features[idx - 1] : null;
+  const next = idx < pageFeatures.features.length - 1 ? pageFeatures.features[idx + 1] : null;
+
+  return (
+    <>
+      {/* breadcrumb for detail */}
+      {pageFeatures.key === 'database-detail' && (
+        <div style={{ padding: '7px 16px', background: t.accentLight, borderBottom: `1px solid ${t.headerBorder}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: '#64748b' }}>🗄 오버뷰</span>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>›</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: t.accentText }}>🖥 인스턴스 상세</span>
+        </div>
+      )}
+      {/* 헤더 */}
+      <div style={{ padding: '14px 18px 16px', borderBottom: `1px solid ${t.headerBorder}`, background: t.headerBg, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: t.back, fontWeight: 700, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>← 목록으로</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>{idx + 1} / {pageFeatures.features.length}</span>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#94a3b8', padding: '4px 6px' }}>✕</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ width: 44, height: 44, borderRadius: 12, background: t.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{feature.icon}</span>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: t.accentText, letterSpacing: -0.3, lineHeight: 1.3 }}>{feature.label}</div>
+            <div style={{ fontSize: 13, color: t.accent, marginTop: 3, lineHeight: 1.5, wordBreak: 'keep-all' }}>{feature.summary}</div>
+          </div>
+        </div>
+      </div>
+      {/* 본문 */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px 18px' }}>
+        <div style={{ marginBottom: 22 }}>
+          <SectionLabel>기능 설명</SectionLabel>
+          <p style={{ fontSize: 14, color: '#1e293b', lineHeight: 1.95, margin: 0, wordBreak: 'keep-all' }}>{feature.description}</p>
+        </div>
+        {feature.steps && feature.steps.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <SectionLabel>사용 순서</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {feature.steps.map((step, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <span style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: t.step, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, marginTop: 1 }}>{i + 1}</span>
+                  <span style={{ fontSize: 14, color: '#334155', lineHeight: 1.75, wordBreak: 'keep-all' }}>{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {feature.tip && (
+          <div style={{ background: t.tip.bg, border: `1px solid ${t.tip.border}`, borderLeft: `4px solid ${t.tip.left}`, borderRadius: '0 10px 10px 0', padding: '14px 16px', marginBottom: 22 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: t.tip.label, marginBottom: 6 }}>💡 사용 팁</div>
+            <div style={{ fontSize: 14, color: t.tip.text, lineHeight: 1.85, wordBreak: 'keep-all' }}>{feature.tip}</div>
+          </div>
+        )}
+        {feature.relatedFeatures && feature.relatedFeatures.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <SectionLabel>이어서 확인하세요</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {feature.relatedFeatures.map(rel => (
+                <button key={rel.id} onClick={() => onSelect(rel.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '10px 14px', borderRadius: 9, border: `1.5px solid ${t.headerBorder}`, background: t.headerBg, display: 'flex', alignItems: 'flex-start', gap: 10, transition: 'all .15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentLight; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = t.headerBorder; e.currentTarget.style.background = t.headerBg; }}>
+                  <span style={{ fontSize: 16, color: t.accent, flexShrink: 0, marginTop: 1 }}>→</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: t.accentText, marginBottom: 2 }}>{rel.label}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6, wordBreak: 'keep-all' }}>{rel.reason}</div>
+                  </div>
+                  <span style={{ fontSize: 12, color: t.accent }}>›</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {feature.challenge && (
+          <div style={{ marginBottom: 22 }}>
+            <SectionLabel>인터랙티브 챌린지</SectionLabel>
+            <ChallengeCard featureId={feature.id} challenge={feature.challenge} />
+          </div>
+        )}
+        {/* instance-list CTA */}
+        {pageFeatures.key === 'database' && feature.id === 'instance-list' && (
+          <div style={{ background: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)', border: '2px solid #0d9488', borderRadius: 12, padding: '16px 16px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 18 }}>🔍</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#134e4a' }}>장애 분석 플로우로 이어가기</span>
+            </div>
+            <p style={{ fontSize: 13, color: '#0f766e', lineHeight: 1.75, margin: '0 0 14px', wordBreak: 'keep-all' }}>
+              인스턴스를 클릭하면 슬라이드가 열리면서 <strong>액티브 세션 분석 가이드</strong>로 자동 전환됩니다.
+            </p>
+            <button onClick={() => dispatch({ type: 'SET_PENDING', id: 'drawer-active-session' })} style={{ width: '100%', padding: '11px 16px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span>장애 분석 시작</span><span style={{ fontSize: 16 }}>→</span>
+            </button>
+          </div>
+        )}
+      </div>
+      {/* prev/next */}
+      <div style={{ padding: '12px 14px', borderTop: `1px solid ${t.headerBorder}`, background: t.headerBg, display: 'flex', gap: 8, flexShrink: 0 }}>
+        {prev ? (
+          <button onClick={() => onSelect(prev.id)} style={{ flex: 1, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${t.accent}22`, background: `${t.accent}08`, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, color: t.accent }}>←</span>
+            <div><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>이전</div><div style={{ fontSize: 12, fontWeight: 700, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>{prev.label}</div></div>
+          </button>
+        ) : <div style={{ flex: 1 }} />}
+        {next ? (
+          <button onClick={() => onSelect(next.id)} style={{ flex: 1, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${t.accent}22`, background: `${t.accent}08`, display: 'flex', alignItems: 'center', gap: 8, flexDirection: 'row-reverse' }}>
+            <span style={{ fontSize: 16, color: t.accent }}>→</span>
+            <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>다음</div><div style={{ fontSize: 12, fontWeight: 700, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>{next.label}</div></div>
+          </button>
+        ) : <div style={{ flex: 1 }} />}
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE PANEL LAYOUT
+// ═══════════════════════════════════════════════════════════
+function GuidePanelLayout() {
+  const { state, dispatch } = useGuide();
+  const pageKey = state.isDrawerOpen ? 'database-detail' : 'database';
+  const pageFeatures = PAGE_FEATURES[pageKey];
+  const theme = pageKey === 'database-detail' ? 'teal' : 'blue';
+
+  const handleClose = () => dispatch({ type: 'CLOSE_GUIDE' });
+  const handleSetFeature = (id) => dispatch({ type: 'SET_FEATURE', id });
+
+  return (
+    <>
+      {state.isOpen && state.activeFeature && (
+        <div onClick={() => dispatch({ type: 'SET_FEATURE', id: null })} style={{ position: 'fixed', inset: 0, right: GUIDE_PANEL_WIDTH, zIndex: 10, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(1px)', cursor: 'pointer' }} />
+      )}
+      <div style={{ width: state.isOpen ? GUIDE_PANEL_WIDTH : 0, flexShrink: 0, overflow: 'hidden', transition: 'width .22s cubic-bezier(.4,0,.2,1)', position: 'relative' }}>
+        <div style={{ width: GUIDE_PANEL_WIDTH, height: '100%', background: '#fff', borderLeft: '1px solid #e3e7ea', boxShadow: '-4px 0 24px rgba(0,0,0,.1)', display: 'flex', flexDirection: 'column', position: 'absolute', top: 0, right: 0, bottom: 0 }}>
+          {pageFeatures ? (
+            state.activeFeature ? (
+              <DetailView
+                feature={pageFeatures.features.find(f => f.id === state.activeFeature) || pageFeatures.features[0]}
+                pageFeatures={pageFeatures}
+                theme={theme}
+                onBack={() => dispatch({ type: 'SET_FEATURE', id: null })}
+                onSelect={handleSetFeature}
+                onClose={handleClose}
+              />
+            ) : (
+              <ListView pageFeatures={pageFeatures} theme={theme} onSelect={handleSetFeature} onClose={handleClose} />
+            )
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SUMMARY BAR
+// ═══════════════════════════════════════════════════════════
+function SummaryBar({ instances, statusFilter, onFilter }) {
+  const total = instances.length;
+  const counts = { active: 0, warning: 0, critical: 0, nosignal: 0 };
+  instances.forEach(i => { if (counts[i.status] !== undefined) counts[i.status]++; });
+
+  const cards = [
+    { label: '전체', value: total, bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', key: null },
+    { label: 'Active', value: counts.active, bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', key: 'active' },
+    { label: 'Warning', value: counts.warning, bg: '#fffbeb', color: '#d97706', border: '#fde68a', key: 'warning' },
+    { label: 'Critical', value: counts.critical, bg: '#fef2f2', color: '#dc2626', border: '#fecaca', key: 'critical' },
+    { label: 'No Signal', value: counts.nosignal, bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb', key: 'nosignal' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      {cards.map(c => {
+        const isActive = statusFilter === c.key;
+        return (
+          <div key={c.label} onClick={() => onFilter(isActive ? null : c.key)} style={{ flex: 1, minWidth: 90, padding: '10px 14px', background: c.bg, border: `1.5px solid ${isActive ? c.color : c.border}`, borderRadius: 10, cursor: 'pointer', transition: 'all .15s', boxShadow: isActive ? `0 0 0 2px ${c.color}44` : 'none' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 11, color: c.color, fontWeight: 600, marginTop: 2 }}>{c.label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// HEX GRID
+// ═══════════════════════════════════════════════════════════
+function HexGrid({ instances, onSelect, selectedId }) {
+  const [tooltip, setTooltip] = useState(null);
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>Instance Map</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', minHeight: 80, position: 'relative' }}>
+        {instances.map(inst => {
+          const cfg = STATUS_CONFIG[inst.status];
+          const isSelected = inst.id === selectedId;
+          return (
+            <div key={inst.id} style={{ position: 'relative' }}
+              onMouseEnter={() => setTooltip(inst.id)}
+              onMouseLeave={() => setTooltip(null)}
+              onClick={() => onSelect(inst)}
+            >
+              <div style={{
+                width: 52, height: 52,
+                clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                background: cfg.hex,
+                cursor: 'pointer',
+                opacity: inst.status === 'nosignal' ? 0.5 : 1,
+                border: isSelected ? '3px solid #1e293b' : 'none',
+                transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+                transition: 'transform .15s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', textAlign: 'center', lineHeight: 1.2, padding: '0 4px', wordBreak: 'break-all' }}>{inst.name.split('-').slice(-1)[0]}</span>
+              </div>
+              {tooltip === inst.id && (
+                <div style={{ position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)', background: '#1e293b', color: '#fff', padding: '6px 10px', borderRadius: 7, fontSize: 11, whiteSpace: 'nowrap', zIndex: 50, pointerEvents: 'none', lineHeight: 1.7, boxShadow: '0 4px 12px rgba(0,0,0,.3)' }}>
+                  <div style={{ fontWeight: 700 }}>{inst.name}</div>
+                  <div>CPU: {inst.cpuUsage}%  MEM: {inst.memoryUsed}%</div>
+                  <div>Sessions: {inst.activeSessions}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748b' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: cfg.hex, display: 'inline-block' }} />
+            {cfg.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// USAGE BAR
+// ═══════════════════════════════════════════════════════════
+function UsageBar({ value, critical, warning }) {
+  const color = critical ? '#ef4444' : warning ? '#f59e0b' : '#10b981';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ flex: 1, height: 5, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', minWidth: 50 }}>
+        <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 3, transition: 'width .3s' }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, color, minWidth: 32, textAlign: 'right' }}>{value}%</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// INSTANCE TABLE
+// ═══════════════════════════════════════════════════════════
+function InstanceTable({ instances, onSelect, selectedId, pendingDetailFeature }) {
+  const [sortDir, setSortDir] = useState(null); // null | 'asc' | 'desc'
+  const sorted = [...instances];
+  if (sortDir === 'desc') sorted.sort((a, b) => b.cpuUsage - a.cpuUsage);
+  else if (sortDir === 'asc') sorted.sort((a, b) => a.cpuUsage - b.cpuUsage);
+
+  const toggleSort = () => setSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+      {pendingDetailFeature && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(13,148,136,0.08)', border: '2px solid #0d9488', borderRadius: 8, zIndex: 5, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 16, pointerEvents: 'none' }}>
+          <div style={{ background: '#0d9488', color: '#fff', fontSize: 12, fontWeight: 700, padding: '6px 16px', borderRadius: 20, boxShadow: '0 4px 12px rgba(0,0,0,.2)' }}>
+            인스턴스를 클릭하면 장애 분석 가이드가 시작됩니다 →
+          </div>
+        </div>
+      )}
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>인스턴스 목록</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>총 {instances.length}개</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+              {['인스턴스명','DB Type','그룹'].map(h => (
+                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap', borderRight: '1px solid #f0f2f4' }}>{h}</th>
+              ))}
+              <th onClick={toggleSort} style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', borderRight: '1px solid #f0f2f4', cursor: 'pointer', userSelect: 'none' }}>
+                CPU Usage {sortDir === 'desc' ? '↓' : sortDir === 'asc' ? '↑' : '↕'}
+              </th>
+              <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap', borderRight: '1px solid #f0f2f4' }}>Memory</th>
+              <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap', borderRight: '1px solid #f0f2f4' }}>Active Sessions</th>
+              <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(inst => {
+              const s = STATUS_CONFIG[inst.status];
+              const isSelected = inst.id === selectedId;
+              return (
+                <tr key={inst.id} onClick={() => onSelect(inst)} style={{ borderBottom: '1px solid #f0f2f4', background: isSelected ? '#eff6ff' : 'transparent', cursor: 'pointer', transition: 'background .1s' }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f8fafc'; }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}>
+                  <td style={{ padding: '9px 14px', color: '#2563eb', fontWeight: 600 }}>{inst.name}</td>
+                  <td style={{ padding: '9px 14px' }}><span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{DB_LABEL[inst.dbType] || inst.dbType}</span></td>
+                  <td style={{ padding: '9px 14px', color: '#64748b' }}>{inst.group}</td>
+                  <td style={{ padding: '9px 14px', minWidth: 130 }}><UsageBar value={inst.cpuUsage} critical={inst.cpuUsage > 80} warning={inst.cpuUsage > 60} /></td>
+                  <td style={{ padding: '9px 14px', minWidth: 120 }}><UsageBar value={inst.memoryUsed} critical={inst.memoryUsed > 85} warning={inst.memoryUsed > 70} /></td>
+                  <td style={{ padding: '9px 14px', textAlign: 'center', fontWeight: 700, color: inst.activeSessions > 40 ? '#dc2626' : '#334155' }}>{inst.activeSessions}</td>
+                  <td style={{ padding: '9px 14px' }}><span style={{ background: s.bg, color: s.color, padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>{s.label}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTER PANEL
+// ═══════════════════════════════════════════════════════════
+function FilterPanel({ selectedTypes, onToggle }) {
+  const types = [
+    { key: 'postgresql', label: 'PostgreSQL', color: '#336791' },
+    { key: 'mysql', label: 'MySQL', color: '#e37b00' },
+    { key: 'oracle', label: 'Oracle', color: '#c74634' },
+  ];
+  return (
+    <div style={{ width: 180, flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 16px', height: 'fit-content' }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#374151', marginBottom: 12, letterSpacing: 0.5 }}>DB 타입 필터</div>
+      {types.map(t => {
+        const checked = selectedTypes.includes(t.key);
+        return (
+          <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={checked} onChange={() => onToggle(t.key)} style={{ width: 15, height: 15, cursor: 'pointer', accentColor: t.color }} />
+            <span style={{ fontSize: 13, color: '#374151', fontWeight: checked ? 700 : 400 }}>{t.label}</span>
+          </label>
+        );
+      })}
+      {selectedTypes.length > 0 && (
+        <button onClick={() => onToggle('__clear__')} style={{ marginTop: 6, fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>전체 해제</button>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAWER TABS CONTENT
+// ═══════════════════════════════════════════════════════════
+function DrawerTabContent({ tab, instance }) {
+  if (tab === '액티브 세션') return <ActiveSessionTab instance={instance} />;
+  if (tab === '정보') return <InfoTab instance={instance} />;
+  if (tab === '메트릭') return <MetricTab />;
+  if (tab === 'SQL 목록') return <SqlListTab />;
+  if (tab === 'Lock 정보') return <LockTab />;
+  if (tab === '알람') return <AlertTab />;
+  if (tab === '파라미터') return <ParameterTab />;
+  if (tab === '호스트 프로세스 목록') return <HostProcessTab />;
+  return <PlaceholderTab tab={tab} />;
+}
+
+function InfoTab({ instance }) {
+  const rows = [
+    ['인스턴스명', instance.name], ['연결 상태', STATUS_CONFIG[instance.status].label],
+    ['Agent 버전', 'v2.4.1'], ['그룹', instance.group], ['DB 버전', instance.dbType === 'postgresql' ? 'PostgreSQL 15.2' : instance.dbType === 'mysql' ? 'MySQL 8.0.32' : 'Oracle 19c'],
+    ['기동 시간', '14일 7시간 23분'],
+  ];
+  const machineRows = [
+    ['호스트명', `host-${instance.name}`], ['Host IP', `10.0.1.${parseInt(instance.id) * 7 % 254}`],
+    ['운영체제', 'Ubuntu 22.04 LTS'], ['커널 버전', '5.15.0-92-generic'],
+  ];
+  return (
+    <div style={{ padding: 20 }}>
+      <Section title="Agent 정보">
+        {rows.map(([k, v]) => <InfoRow key={k} label={k} value={v} />)}
+      </Section>
+      <Section title="Machine 정보">
+        {machineRows.map(([k, v]) => <InfoRow key={k} label={k} value={v} />)}
+      </Section>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>{title}</div>
+      <div style={{ background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden' }}>{children}</div>
+    </div>
+  );
+}
+function InfoRow({ label, value }) {
+  return (
+    <div style={{ display: 'flex', borderBottom: '1px solid #f0f2f4', padding: '9px 14px' }}>
+      <span style={{ fontSize: 12, color: '#64748b', width: 120, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 12, color: '#1e293b', fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function MetricTab() {
+  // Simple sparkline-style chart using SVG
+  const data = [22, 35, 41, 38, 52, 67, 71, 65, 58, 73, 88, 91, 85, 78, 72, 68, 74, 81, 76, 70];
+  const max = 100; const w = 340; const h = 80;
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * h}`).join(' ');
+  return (
+    <div style={{ padding: 20 }}>
+      {[['CPU Usage', '#ef4444', data], ['Memory', '#f59e0b', data.map(v => Math.max(10, v - 10))], ['Active Sessions', '#2563eb', data.map(v => Math.round(v * 0.7))]].map(([label, color, d]) => (
+        <div key={label} style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>{label}</div>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', overflow: 'hidden' }}>
+            <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+              <polyline fill="none" stroke={color} strokeWidth="2" points={d.map((v, i) => `${(i / (d.length - 1)) * w},${h - (v / max) * h}`).join(' ')} />
+              <polygon fill={`${color}22`} points={`0,${h} ${d.map((v, i) => `${(i / (d.length - 1)) * w},${h - (v / max) * h}`).join(' ')} ${w},${h}`} />
+            </svg>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+              <span>-5분</span><span>현재</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActiveSessionTab({ instance }) {
+  const [selected, setSelected] = useState(null);
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span>액티브 세션</span>
+        <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{MOCK_SESSIONS.filter(s => s.state === 'active').length} active</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              {['PID','User','SQL Text','Elapsed','Wait Event','State'].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {MOCK_SESSIONS.map(s => {
+              const isLock = s.waitEvent === 'Lock';
+              const isSelected = selected === s.pid;
+              return (
+                <tr key={s.pid} onClick={() => setSelected(isSelected ? null : s.pid)} style={{ borderBottom: '1px solid #f0f2f4', cursor: 'pointer', background: isSelected ? '#eff6ff' : isLock ? '#fff7ed' : 'transparent', transition: 'background .1s' }}>
+                  <td style={{ padding: '8px 10px', color: '#2563eb', fontWeight: 700 }}>{s.pid}</td>
+                  <td style={{ padding: '8px 10px', color: '#374151' }}>{s.user}</td>
+                  <td style={{ padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#64748b' }}>{s.sql}</td>
+                  <td style={{ padding: '8px 10px', color: parseFloat(s.elapsed) > 10 ? '#dc2626' : '#374151', fontWeight: parseFloat(s.elapsed) > 10 ? 700 : 400 }}>{s.elapsed}</td>
+                  <td style={{ padding: '8px 10px' }}><span style={{ background: isLock ? '#fee2e2' : '#f1f5f9', color: isLock ? '#dc2626' : '#64748b', padding: '2px 7px', borderRadius: 4, fontWeight: isLock ? 700 : 400 }}>{s.waitEvent}</span></td>
+                  <td style={{ padding: '8px 10px' }}><span style={{ background: s.state === 'active' ? '#d1fae5' : '#f3f4f6', color: s.state === 'active' ? '#059669' : '#6b7280', padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>{s.state}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {selected && (
+        <div style={{ marginTop: 14, padding: '14px', background: '#eff6ff', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: 12 }}>
+          <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>Session Detail — PID {selected}</div>
+          <div style={{ color: '#374151', lineHeight: 1.7 }}>
+            <div>SQL: {MOCK_SESSIONS.find(s => s.pid === selected)?.sql}</div>
+            <div style={{ marginTop: 6, color: '#64748b' }}>클릭 시 Session Detail Slide에서 전체 SQL 이력과 수행 통계를 확인할 수 있습니다.</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SqlListTab() {
+  const sqls = [
+    { id: 'SQL-001', text: 'SELECT * FROM orders WHERE status = ?', count: 1482, avgElapsed: '0.82s', bufferHit: '94.2%' },
+    { id: 'SQL-002', text: 'UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ?', count: 893, avgElapsed: '2.14s', bufferHit: '88.7%' },
+    { id: 'SQL-003', text: 'SELECT COUNT(*), SUM(amount) FROM transactions GROUP BY date', count: 45, avgElapsed: '8.91s', bufferHit: '61.3%' },
+    { id: 'SQL-004', text: 'DELETE FROM temp_data WHERE expire_at < NOW()', count: 12, avgElapsed: '22.4s', bufferHit: '45.1%' },
+  ];
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>SQL 성능 통계</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              {['SQL ID','SQL Text','실행 횟수','Avg Elapsed','Buffer Hit'].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sqls.map(s => (
+              <tr key={s.id} style={{ borderBottom: '1px solid #f0f2f4', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <td style={{ padding: '8px 10px', color: '#2563eb', fontWeight: 700 }}>{s.id}</td>
+                <td style={{ padding: '8px 10px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>{s.text}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: '#374151' }}>{s.count}</td>
+                <td style={{ padding: '8px 10px', color: parseFloat(s.avgElapsed) > 5 ? '#dc2626' : '#374151', fontWeight: parseFloat(s.avgElapsed) > 5 ? 700 : 400 }}>{s.avgElapsed}</td>
+                <td style={{ padding: '8px 10px', color: parseFloat(s.bufferHit) < 70 ? '#d97706' : '#059669' }}>{s.bufferHit}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function LockTab() {
+  const locks = [
+    { blocker: '23451', waiter: '23452', lockType: 'RowExclusive', duration: '8.1s', object: 'orders' },
+    { blocker: '23451', waiter: '23453', lockType: 'RowExclusive', duration: '5.4s', object: 'orders' },
+  ];
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ background: '#fff7ed', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>⚠ Lock 대기 {locks.length}건 감지됨</span>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Lock 대기 관계</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            {['Blocker PID','Waiter PID','Lock Type','대기 시간','Object'].map(h => <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {locks.map((l, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f0f2f4' }}>
+              <td style={{ padding: '8px 10px', color: '#dc2626', fontWeight: 700 }}>{l.blocker}</td>
+              <td style={{ padding: '8px 10px', color: '#f59e0b', fontWeight: 700 }}>{l.waiter}</td>
+              <td style={{ padding: '8px 10px', color: '#374151' }}>{l.lockType}</td>
+              <td style={{ padding: '8px 10px', color: '#dc2626', fontWeight: 700 }}>{l.duration}</td>
+              <td style={{ padding: '8px 10px', color: '#374151' }}>{l.object}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AlertTab() {
+  const alerts = [
+    { name: 'CPU Critical', severity: 'critical', time: '13:42:18', value: 'CPU 91%', threshold: '> 85%' },
+    { name: 'Memory Warning', severity: 'warning', time: '13:38:05', value: 'MEM 88%', threshold: '> 80%' },
+    { name: 'Active Session Warning', severity: 'warning', time: '13:35:51', value: '58 sessions', threshold: '> 50' },
+  ];
+  const sevStyle = { critical: { bg: '#fee2e2', color: '#dc2626' }, warning: { bg: '#fef3c7', color: '#d97706' } };
+  return (
+    <div style={{ padding: 20 }}>
+      {alerts.map((a, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 8 }}>
+          <span style={{ ...sevStyle[a.severity], padding: '3px 9px', borderRadius: 5, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{a.severity === 'critical' ? 'Critical' : 'Warning'}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{a.name}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{a.value} (임계치: {a.threshold})</div>
+          </div>
+          <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>{a.time}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ParameterTab() {
+  const params = [
+    { name: 'max_connections', value: '200', recommended: '100-500' },
+    { name: 'shared_buffers', value: '4GB', recommended: '25% of RAM' },
+    { name: 'work_mem', value: '64MB', recommended: '4-64MB' },
+    { name: 'checkpoint_completion_target', value: '0.9', recommended: '0.7-0.9' },
+    { name: 'wal_buffers', value: '64MB', recommended: '1/32 of shared_buffers' },
+  ];
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 12 }}>조회 시각: 2026-04-15 14:23:10</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            {['파라미터명','현재 값','권장 범위'].map(h => <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {params.map(p => (
+            <tr key={p.name} style={{ borderBottom: '1px solid #f0f2f4' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <td style={{ padding: '8px 10px', color: '#2563eb', fontWeight: 600, cursor: 'pointer' }}>{p.name}</td>
+              <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 700 }}>{p.value}</td>
+              <td style={{ padding: '8px 10px', color: '#64748b' }}>{p.recommended}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HostProcessTab() {
+  const procs = [
+    { pid: '1024', ppid: '1', name: 'postgres', cpu: '12.3', virt: '2.1GB', rss: '512MB' },
+    { pid: '1025', ppid: '1024', name: 'postgres: wal writer', cpu: '1.2', virt: '2.1GB', rss: '48MB' },
+    { pid: '1026', ppid: '1024', name: 'postgres: background writer', cpu: '0.8', virt: '2.1GB', rss: '32MB' },
+    { pid: '2341', ppid: '1', name: 'prometheus-postgres-exporter', cpu: '0.4', virt: '128MB', rss: '24MB' },
+    { pid: '3891', ppid: '1', name: 'java', cpu: '8.7', virt: '4.2GB', rss: '1.8GB' },
+  ];
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>OS 프로세스 목록</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            {['PID','PPID','프로세스명','CPU %','VIRT','RSS'].map(h => <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {procs.map(p => (
+            <tr key={p.pid} style={{ borderBottom: '1px solid #f0f2f4' }}>
+              <td style={{ padding: '8px 10px', color: '#2563eb', fontWeight: 700 }}>{p.pid}</td>
+              <td style={{ padding: '8px 10px', color: '#64748b' }}>{p.ppid}</td>
+              <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{p.name}</td>
+              <td style={{ padding: '8px 10px', color: parseFloat(p.cpu) > 5 ? '#dc2626' : '#374151', fontWeight: parseFloat(p.cpu) > 5 ? 700 : 400 }}>{p.cpu}%</td>
+              <td style={{ padding: '8px 10px', color: '#374151' }}>{p.virt}</td>
+              <td style={{ padding: '8px 10px', color: '#374151' }}>{p.rss}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PlaceholderTab({ tab }) {
+  return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+      <div style={{ fontSize: 14, fontWeight: 600 }}>{tab}</div>
+      <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.7 }}>실제 앱에서는 이 탭에서<br />관련 데이터를 실시간으로 확인합니다.</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// INSTANCE DRAWER
+// ═══════════════════════════════════════════════════════════
+function InstanceDrawer({ instance, isOpen, guideOpen }) {
+  const { state, dispatch } = useGuide();
+  const offset = guideOpen ? GUIDE_PANEL_WIDTH : 0;
+  const s = instance ? STATUS_CONFIG[instance.status] : null;
+
+  return (
+    <div style={{ position: 'fixed', top: 0, right: offset, bottom: 0, width: DRAWER_WIDTH, background: '#fff', borderLeft: '1px solid #e3e7ea', boxShadow: '-8px 0 32px rgba(0,0,0,.12)', transform: isOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .3s cubic-bezier(.4,0,.2,1), right .22s', zIndex: 30, display: 'flex', flexDirection: 'column' }}>
+      {/* 헤더 */}
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid #e3e7ea', background: '#fff', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={() => dispatch({ type: 'CLOSE_DRAWER' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: '2px 6px', marginRight: 4 }}>←</button>
+        {instance && s && (
+          <>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>{instance.name}</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{DB_LABEL[instance.dbType]} · {instance.group}</div>
+            </div>
+            <span style={{ background: s.bg, color: s.color, padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{s.label}</span>
+            <div style={{ textAlign: 'right', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+              <div>CPU {instance.cpuUsage}%</div>
+              <div>MEM {instance.memoryUsed}%</div>
+            </div>
+          </>
+        )}
+      </div>
+      {/* 탭 */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #e3e7ea', background: '#f8fafc', flexShrink: 0, overflowX: 'auto' }}>
+        {DRAWER_TABS.map(tab => {
+          const isActive = state.drawerTab === tab;
+          return (
+            <button key={tab} onClick={() => dispatch({ type: 'SET_DRAWER_TAB', tab })} style={{ padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: isActive ? 800 : 500, color: isActive ? '#0d9488' : '#64748b', borderBottom: isActive ? '2px solid #0d9488' : '2px solid transparent', whiteSpace: 'nowrap', transition: 'all .15s', flexShrink: 0 }}>
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+      {/* 내용 */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {instance && <DrawerTabContent tab={state.drawerTab} instance={instance} />}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATABASE PAGE
+// ═══════════════════════════════════════════════════════════
+function DatabasePage() {
+  const { state, dispatch } = useGuide();
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [typeFilters, setTypeFilters] = useState([]);
+
+  const filtered = MOCK_INSTANCES.filter(inst => {
+    if (statusFilter && inst.status !== statusFilter) return false;
+    if (typeFilters.length > 0 && !typeFilters.includes(inst.dbType)) return false;
+    return true;
+  });
+
+  const handleToggleType = (key) => {
+    if (key === '__clear__') { setTypeFilters([]); return; }
+    setTypeFilters(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  const handleSelectInstance = (inst) => {
+    dispatch({ type: 'SELECT_INSTANCE', instance: inst });
+  };
+
+  return (
+    <div style={{ display: 'flex', height: '100%', gap: 14 }}>
+      {/* 왼쪽 필터 */}
+      <GuideHighlight id="filter">
+        <FilterPanel selectedTypes={typeFilters} onToggle={handleToggleType} />
+      </GuideHighlight>
+
+      {/* 오른쪽 메인 */}
+      <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <GuideHighlight id="summary">
+          <SummaryBar instances={MOCK_INSTANCES} statusFilter={statusFilter} onFilter={setStatusFilter} />
+        </GuideHighlight>
+        <GuideHighlight id="hexgrid">
+          <HexGrid instances={filtered} onSelect={handleSelectInstance} selectedId={state.selectedInstance?.id} />
+        </GuideHighlight>
+        <GuideHighlight id="table">
+          <InstanceTable instances={filtered} onSelect={handleSelectInstance} selectedId={state.selectedInstance?.id} pendingDetailFeature={state.pendingDetailFeature} />
+        </GuideHighlight>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEFT SIDEBAR (nav)
+// ═══════════════════════════════════════════════════════════
+function LeftSidebar() {
+  const navItems = [
+    { icon: '🏠', label: '홈' }, { icon: '🗄', label: '오버뷰', active: true },
+    { icon: '📈', label: '성능분석' }, { icon: '🔔', label: '알람' },
+    { icon: '📊', label: '대시보드' },
+  ];
+  return (
+    <div style={{ width: 56, background: '#1a2035', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, flexShrink: 0 }}>
+      <div style={{ width: 32, height: 32, background: '#2563eb', borderRadius: 8, marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>e</div>
+      {navItems.map(item => (
+        <div key={item.label} style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 4, background: item.active ? 'rgba(37,99,235,0.2)' : 'transparent', position: 'relative' }}
+          title={item.label}>
+          <span style={{ fontSize: 18 }}>{item.icon}</span>
+          {item.active && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 24, background: '#2563eb', borderRadius: '0 2px 2px 0' }} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOP HEADER
+// ═══════════════════════════════════════════════════════════
+function TopHeader() {
+  const { state, dispatch } = useGuide();
+  return (
+    <div style={{ height: 52, background: '#fff', borderBottom: '1px solid #e3e7ea', display: 'flex', alignItems: 'center', paddingLeft: 20, paddingRight: 16, gap: 12, flexShrink: 0 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>Database</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>/ 오버뷰</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {state.completedChallenges.length > 0 && (
+          <span style={{ fontSize: 11, background: '#d1fae5', color: '#059669', padding: '4px 10px', borderRadius: 99, fontWeight: 700 }}>
+            챌린지 {state.completedChallenges.length}개 완료
+          </span>
+        )}
+        <button onClick={() => dispatch({ type: 'TOGGLE_GUIDE' })} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 8, border: 'none', background: state.isOpen ? '#2563eb' : '#eff6ff', color: state.isOpen ? '#fff' : '#2563eb', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .2s' }}>
+          <span style={{ fontSize: 15 }}>📖</span>
+          <span>{state.isOpen ? '가이드 닫기' : '기능 가이드'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROOT APP
+// ═══════════════════════════════════════════════════════════
+function App() {
+  const [state, dispatch] = useReducer(guideReducer, initialState);
+  const drawerOffset = state.isOpen ? GUIDE_PANEL_WIDTH : 0;
+
+  return (
+    <GuideCtx.Provider value={{ state, dispatch }}>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f3f5f8' }}>
+        <LeftSidebar />
+        {/* main column */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          <TopHeader />
+          {/* body */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {/* page content — shifts when drawer opens */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', paddingRight: state.isDrawerOpen ? DRAWER_WIDTH + 20 : 20, transition: 'padding-right .3s', minWidth: 0 }}>
+              <DatabasePage />
+            </div>
+            {/* guide panel */}
+            <GuidePanelLayout />
+          </div>
+        </div>
+
+        {/* Instance Drawer — fixed overlay */}
+        <InstanceDrawer
+          instance={state.selectedInstance}
+          isOpen={state.isDrawerOpen}
+          guideOpen={state.isOpen}
+        />
+      </div>
+    </GuideCtx.Provider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
