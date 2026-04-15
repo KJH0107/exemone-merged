@@ -83,10 +83,10 @@ export default function DatabasePage() {
               { key: 'name', label: '인스턴스명' },
               { key: 'dbType', label: 'DB 유형' },
               { key: 'status', label: '상태' },
-              { key: 'host', label: '호스트' },
+              { key: 'hostIp', label: '호스트 IP' },
               { key: 'group', label: '그룹' },
             ]}
-            rows={mockInstances.map(i => ({ name: i.name, dbType: i.dbType, status: i.status, host: i.host, group: i.group ?? '' }))}
+            rows={mockInstances.map(i => ({ name: i.name, dbType: i.dbType, status: i.status, hostIp: i.hostIp, group: i.group ?? '' }))}
           />
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             {new Date().toLocaleString('ko-KR')}
@@ -2566,6 +2566,8 @@ function genActiveSessions(): ActiveSession[] {
 
 type FilterStep = 'idle' | 'field' | 'operator' | 'value'
 
+type FilterField = { key?: string; id?: string; label: string; isDefault?: boolean; operators?: string[]; values?: string[] }
+
 function FilterBar({
   filters, onAdd, onClear, onRemove, fields,
 }: {
@@ -2573,11 +2575,11 @@ function FilterBar({
   onAdd: (chip: FilterChip) => void
   onRemove: (id: string) => void
   onClear: () => void
-  fields?: typeof FILTER_FIELDS
+  fields?: FilterField[]
 }) {
-  const activeFields = fields ?? FILTER_FIELDS
+  const activeFields: FilterField[] = fields ?? FILTER_FIELDS
   const [step, setStep]                 = useState<FilterStep>('idle')
-  const [pendingField, setPendingField] = useState<typeof FILTER_FIELDS[0] | null>(null)
+  const [pendingField, setPendingField] = useState<FilterField | null>(null)
   const [pendingOp, setPendingOp]       = useState('')
   const [inputVal, setInputVal]         = useState('')
   const [navIdx, setNavIdx]             = useState(0)
@@ -2613,7 +2615,7 @@ function FilterBar({
 
   const commit = () => {
     if (!pendingField || !pendingOp || !inputVal.trim()) return
-    onAdd({ id: Date.now().toString(), field: pendingField.label, fieldKey: pendingField.key, operator: pendingOp, value: inputVal.trim() })
+    onAdd({ id: Date.now().toString(), field: pendingField.label, fieldKey: pendingField.key ?? pendingField.id ?? '', operator: pendingOp, value: inputVal.trim() })
     reset()
   }
 
