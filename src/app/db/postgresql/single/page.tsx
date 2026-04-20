@@ -1,152 +1,642 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 
 /* ══════════════════════════════════════════════════════════
    MOCK DATA
 ══════════════════════════════════════════════════════════ */
-const TOP_SESSIONS = [
-  { rank:1, user:'app_user',  cpu:42.1, elapsed:'0.12s' },
-  { rank:2, user:'analytics', cpu:28.3, elapsed:'8.21s' },
-  { rank:3, user:'dba',       cpu:15.2, elapsed:'1.08s' },
-  { rank:4, user:'app_user',  cpu: 8.9, elapsed:'0.03s' },
-  { rank:5, user:'analytics', cpu: 5.5, elapsed:'2.45s' },
+// Statistics & Events — 좌측 수평 bar
+const TUP_STATS = [
+  { name:'Tup Updated', val:152, pct:100 },
+  { name:'Tup Inserted', val: 58, pct: 38.3 },
+  { name:'Tup Deleted',  val: 11, pct:  7.2 },
+  { name:'Tup Returned', val:  4, pct:  2.6 },
+  { name:'Tup Fetched',  val:  1, pct:  0.7 },
 ]
+// Statistics & Events — 우측 Top Event 표
 const TOP_EVENTS = [
-  { rank:1, event:'Lock:tuple',  wait:'8.21s', pct:74 },
-  { rank:2, event:'IO:read',     wait:'1.20s', pct:11 },
-  { rank:3, event:'Checkpoint',  wait:'0.82s', pct: 7 },
-  { rank:4, event:'WAL:write',   wait:'0.63s', pct: 6 },
-  { rank:5, event:'Network',     wait:'0.18s', pct: 2 },
+  { rank:1, type:'Clie...', event:'Client', cnt:16 },
+  { rank:2, type:'CPU',     event:'CPU',    cnt:14 },
+  { rank:3, type:'Clien...',event:'Client', cnt:12 },
 ]
-const TOP_SQL = [
-  { rank:1, sql:'SELECT * FROM orders WHERE status = $1',          elapsed:4821, calls:248 },
-  { rank:2, sql:'UPDATE products SET stock = stock - 1',           elapsed:2340, calls: 89 },
-  { rank:3, sql:'SELECT u.*, p.* FROM users u JOIN profiles p',    elapsed:1820, calls:412 },
-  { rank:4, sql:'INSERT INTO audit_log (action, user_id, ts)',      elapsed: 980, calls:631 },
-  { rank:5, sql:'DELETE FROM sessions WHERE last_active < NOW()',   elapsed: 730, calls: 44 },
+// SQL & Function — 막대 데이터 (calls 기준, 비어있으면 빈 배열)
+const SQL_CALLS:  number[] = []
+const FUNC_CALLS: number[] = []
+// Object — Top Object 표
+const TOP_OBJECTS = [
+  { name:'ora_sta...',  val:'10.2M', raw:10200 },
+  { name:'last_alar...',val:' 5.1M', raw: 5100 },
+  { name:'apm_db_i...',val:' 4.7M', raw: 4700 },
+  { name:'ora_even...',val:' 2.3M', raw: 2300 },
+  { name:'apm_aler...',val:' 1.9M', raw: 1900 },
 ]
-const TOP_FUNCTION = [
-  { rank:1, func:'get_user_orders',     totalMs:12480, calls:248 },
-  { rank:2, func:'update_product_stock',totalMs: 5200, calls: 89 },
-  { rank:3, func:'calc_shipping_fee',   totalMs: 3100, calls:312 },
-  { rank:4, func:'audit_log_insert',    totalMs: 1800, calls:631 },
-  { rank:5, func:'session_cleanup',     totalMs:  920, calls: 44 },
+// Trend Summary — 선택 가능한 지표 목록
+const TREND_METRICS = [
+  { id:'tps',      label:'TPS',           unit:'count', base:28,  range:15 },
+  { id:'tup_upd',  label:'Tup Updated',   unit:'count', base:80,  range:60 },
+  { id:'tup_ins',  label:'Tup Inserted',  unit:'count', base:40,  range:30 },
+  { id:'tup_del',  label:'Tup Deleted',   unit:'count', base:12,  range:8  },
+  { id:'blks_hit', label:'Blks Hit',      unit:'count', base:4800,range:400},
+  { id:'cpu',      label:'CPU Usage',     unit:'%',     base:18,  range:12 },
+  { id:'sessions', label:'Sessions',      unit:'count', base:32,  range:8  },
 ]
-const OBJECTS = [
-  { name: 'Tables',    count: 148, used: 84 },
-  { name: 'Indexes',   count: 312, used: 91 },
-  { name: 'Views',     count: 23,  used: 61 },
-  { name: 'Sequences', count: 47,  used: 100 },
-  { name: 'Functions', count: 89,  used: 45 },
+const ACTIVE_BACKENDS = [
+  { pid:31842, userName:'app_user',  dbName:'demo3', appName:'node-postgres', clientAddr:'10.10.1.5',  clientHost:'app-server-01', backendStart:'2026-04-17 08:12:03', elapsed:0.12 },
+  { pid:31801, userName:'app_user',  dbName:'demo3', appName:'node-postgres', clientAddr:'10.10.1.5',  clientHost:'app-server-01', backendStart:'2026-04-17 08:09:41', elapsed:2.45 },
+  { pid:31755, userName:'analytics', dbName:'demo3', appName:'psql',          clientAddr:'10.10.2.10', clientHost:'analytics-01',  backendStart:'2026-04-17 07:55:22', elapsed:8.21 },
+  { pid:31710, userName:'analytics', dbName:'demo3', appName:'psql',          clientAddr:'10.10.2.10', clientHost:'analytics-01',  backendStart:'2026-04-17 07:48:10', elapsed:0.03 },
+  { pid:31698, userName:'dba',       dbName:'demo3', appName:'pgAdmin 4',     clientAddr:'10.10.0.1',  clientHost:'dba-workstation',backendStart:'2026-04-17 07:45:00', elapsed:1.08 },
+  { pid:31620, userName:'app_user',  dbName:'demo3', appName:'node-postgres', clientAddr:'10.10.1.6',  clientHost:'app-server-02', backendStart:'2026-04-17 07:30:15', elapsed:14.3 },
 ]
-const SESSIONS: { pid:number; user:string; db:string; state:string; wait:string; elapsed:string; sql:string }[] = [
-  { pid:31842, user:'app_user',  db:'demo3', state:'active', wait:'-',          elapsed:'0.12s', sql:'SELECT * FROM orders WHERE status = $1 LIMIT 100' },
-  { pid:31801, user:'app_user',  db:'demo3', state:'idle',   wait:'-',          elapsed:'2.45s', sql:'idle' },
-  { pid:31755, user:'analytics', db:'demo3', state:'active', wait:'Lock:tuple', elapsed:'8.21s', sql:'UPDATE products SET stock = stock - 1 WHERE id = $1' },
-  { pid:31710, user:'analytics', db:'demo3', state:'idle',   wait:'-',          elapsed:'0.03s', sql:'SELECT pg_sleep(0)' },
-  { pid:31698, user:'dba',       db:'demo3', state:'active', wait:'-',          elapsed:'1.08s', sql:'EXPLAIN ANALYZE SELECT * FROM sessions JOIN users ON ...' },
-  { pid:31620, user:'app_user',  db:'demo3', state:'idle',   wait:'-',          elapsed:'14.3s', sql:'idle' },
+const LOCK_TREE = [
+  { dbName:'demo3', pid:31755, lockStatus:'waiting', holderPid:31842, userName:'analytics' },
+  { dbName:'demo3', pid:31801, lockStatus:'granted', holderPid:null,  userName:'app_user'  },
+  { dbName:'demo3', pid:31698, lockStatus:'granted', holderPid:null,  userName:'dba'       },
 ]
-const SQL_TEXTS = [
-  'SELECT * FROM orders WHERE status = $1 LIMIT 100',
-  'UPDATE products SET stock = stock - 1 WHERE id = $1',
-  'SELECT u.*, p.* FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.active = true',
-  'INSERT INTO audit_log (action, user_id, ts) VALUES ($1, $2, NOW())',
-  'DELETE FROM sessions WHERE last_active < NOW() - INTERVAL \'30 minutes\'',
-  'SELECT COUNT(*) FROM orders o JOIN order_items oi ON o.id = oi.order_id',
-  'EXPLAIN ANALYZE SELECT * FROM large_table WHERE indexed_col = $1',
-  'SELECT pid, query, state FROM pg_stat_activity WHERE state != \'idle\'',
-]
-function genSeries(n:number, base:number, range:number) {
-  return Array.from({ length:n }, (_,i) => [i, +(base + (Math.sin(i*0.3)*range*0.4 + (Math.random()-0.5)*range*0.6)).toFixed(2)])
+// Trend 시간 레이블 (10분 간격, 7포인트)
+function genTrendTimes() {
+  const now = Date.now()
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(now - (6-i)*10*60*1000)
+    return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
+  })
 }
-const N = 30
-const realtimeCharts = [
-  { label:'Blks Hit (count)',  subtitle:'', data:genSeries(N,4800,400),color:'#3b82f6', unit:''  },
-  { label:'Blks Read (blocks)',subtitle:'', data:genSeries(N,18.4,2),  color:'#a78bfa', unit:''  },
-  { label:'TPS (count/sec)',   subtitle:'', data:genSeries(N,320,80),  color:'#22d3ee', unit:''  },
-  { label:'Rows Hit Ratio (%)',subtitle:'', data:genSeries(N,98.2,3),  color:'#22c55e', unit:'%' },
+const TREND_TIMES = genTrendTimes()
+function genTrendData(base: number, range: number) {
+  return Array.from({length:7}, () => +(base + (Math.random()-0.5)*range*1.2).toFixed(0))
+}
+const VACUUM_ROWS = [
+  ['public.orders',   'AUTO',   'index cleanup', '124s'],
+  ['public.sessions', 'MANUAL', 'heap scan',     ' 47s'],
+]
+
+// Slow Query mock
+const SQ_PIDS = [31842, 31801, 31755, 31710, 31698, 31620]
+const SQ_USERS = ['app_user','analytics','dba','app_user','analytics','app_user']
+const SQ_APPS  = ['node-postgres','psql','pgAdmin 4','node-postgres','psql','node-postgres']
+const SQ_SQL   = [
+  'SELECT pg_sleep(50 + random() * 10)',
+  "SELECT * FROM order_history WHERE created_at > NOW() - INTERVAL '30 days'",
+  'UPDATE sessions SET last_active = NOW() WHERE session_id = $1',
+  'SELECT p.*, SUM(oi.quantity * oi.price) as revenue FROM products p JOIN order_items oi ON p.id = oi.product_id GROUP BY p.id',
+  'DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL \'90 days\'',
+]
+function genSQTimes(n: number) {
+  const now = Date.now()
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(now - i * 15 * 1000)
+    return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`
+  }).reverse()
+}
+interface SQDot { time:string; elapsed:number; pid:number; userName:string; appName:string; clientAddr:string; clientHost:string; sqlText:string }
+const SQ_TICK_TIMES = genSQTimes(20)
+const SQ_DOTS: SQDot[] = Array.from({ length: 18 }, (_, i) => {
+  const idx = i % SQ_PIDS.length
+  return {
+    time:       SQ_TICK_TIMES[Math.floor(Math.random() * SQ_TICK_TIMES.length)],
+    elapsed:    +(Math.random() * 60 + 8).toFixed(3),
+    pid:        SQ_PIDS[idx],
+    userName:   SQ_USERS[idx],
+    appName:    SQ_APPS[idx],
+    clientAddr: '10.10.1.5',
+    clientHost: 'app-server-01',
+    sqlText:    SQ_SQL[i % SQ_SQL.length],
+  }
+})
+
+// RT 메트릭 — 5초 간격 120포인트 (10분)
+function makeRTTimes() {
+  const now = Date.now()
+  return Array.from({ length: 120 }, (_, i) => {
+    const t = new Date(now - (119 - i) * 5000)
+    return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`
+  })
+}
+function makeSeriesData(base: number, range: number, count = 120) {
+  return Array.from({ length: count }, () => Math.max(0, base + (Math.random() - 0.5) * range * 2))
+}
+const SV_RT_TIMES = makeRTTimes()
+const SV_RT_METRIC_POOL = [
+  { id: 'blks_hit',    label: 'Blks Hit',       unit: 'count',   series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(35000, 8000) }] },
+  { id: 'blks_read',   label: 'Blks Read',       unit: 'blocks',  series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(15, 10)    }] },
+  { id: 'rows_hit',    label: 'Rows Hit Ratio',  unit: '%',       series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(98, 2)     }] },
+  { id: 'tps',         label: 'TPS',             unit: 'count/s', series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(320, 80)   }] },
+  { id: 'tup_ins',     label: 'Tup Inserted',    unit: 'count',   series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(500, 200)  }] },
+  { id: 'tup_upd',     label: 'Tup Updated',     unit: 'count',   series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(200, 100)  }] },
+  { id: 'tup_del',     label: 'Tup Deleted',     unit: 'count',   series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(50, 30)    }] },
+  { id: 'active_sess', label: 'Active Sessions', unit: 'count',   series: [{ name: '207 PG 15', color: '#3b82f6', data: makeSeriesData(8, 4)      }] },
 ]
 
 /* ══════════════════════════════════════════════════════════
    CHART OPTIONS
 ══════════════════════════════════════════════════════════ */
-function lineOpt(data:number[][], color:string, yUnit='') {
-  const xLabels = Array.from({ length:N }, (_,i) => {
-    const d = new Date(Date.now() - (N-i)*5000)
-    return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`
+function modalLineOpt(color: string) {
+  const data = Array.from({ length: 20 }, (_, i) => {
+    const spike = i === 10 ? 50000 : i === 11 ? 30000 : 0
+    return +(1000 + Math.random() * 2000 + spike)
   })
   return {
-    backgroundColor:'transparent',
-    grid:{ top:8, right:16, bottom:20, left:44 },
-    xAxis:{ type:'category', data:xLabels, axisLine:{ lineStyle:{ color:'#c9cdd2' } }, axisLabel:{ color:'#9fa5ae', fontSize:9, interval:9 }, axisTick:{ show:false } },
-    yAxis:{ type:'value', axisLabel:{ color:'#9fa5ae', fontSize:9, formatter:(v:number)=>`${v}${yUnit}` }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } } },
-    series:[{ type:'line', data:data.map(d=>d[1]), smooth:true, symbol:'none', lineStyle:{ color, width:1.5 }, areaStyle:{ color:{ type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'00'}] } } }],
+    backgroundColor: 'transparent',
+    grid: { top:10, right:10, bottom:20, left:50 },
+    xAxis: { type:'category', data:Array.from({length:20},(_,i)=>i), axisLabel:{ color:'#9fa5ae', fontSize:9 }, axisTick:{ show:false }, axisLine:{ lineStyle:{ color:'#e3e7ea' } } },
+    yAxis: { type:'value', axisLabel:{ color:'#9fa5ae', fontSize:9 }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } } },
+    series:[{ type:'line', data, smooth:false, symbol:'none', lineStyle:{ color, width:1.5 }, areaStyle:{ color:color+'20' } }],
     tooltip:{ trigger:'axis', backgroundColor:'#fff', borderColor:'#c9cdd2', textStyle:{ color:'#282c32', fontSize:11 } },
   }
 }
-function donutOpt(pct:number) {
+function donutOpt(pct: number) {
   return {
-    backgroundColor:'transparent',
-    series:[{ type:'gauge', startAngle:200, endAngle:-20, min:0, max:100, radius:'92%', center:['50%','60%'], progress:{ show:true, width:10, itemStyle:{ color:'#3b82f6' } }, axisLine:{ lineStyle:{ width:10, color:[[1,'#e3e7ea']] } }, axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false }, detail:{ valueAnimation:true, formatter:'{value}%', color:'#282c32', fontSize:13, fontWeight:700, offsetCenter:[0,'10%'] }, data:[{ value:pct }] }],
+    backgroundColor: 'transparent',
+    series:[{ type:'gauge', startAngle:200, endAngle:-20, min:0, max:100, radius:'92%', center:['50%','60%'],
+      progress:{ show:true, width:10, itemStyle:{ color:'#3b82f6' } },
+      axisLine:{ lineStyle:{ width:10, color:[[1,'#e3e7ea']] } },
+      axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+      detail:{ valueAnimation:true, formatter:'{value}%', color:'#282c32', fontSize:13, fontWeight:700, offsetCenter:[0,'10%'] },
+      data:[{ value:pct }]
+    }],
   }
 }
-function trendBarOpt(data:number[], color:string) {
+// 반원 게이지 (Object: Index Scan vs Table Scan)
+function halfGaugeOpt(tablePct: number, indexPct: number) {
   return {
-    backgroundColor:'transparent',
-    grid:{ top:2, right:2, bottom:2, left:2 },
-    xAxis:{ type:'category', show:false, data:data.map((_,i)=>i) },
-    yAxis:{ type:'value', show:false },
-    series:[{ type:'bar', data, itemStyle:{ color, borderRadius:1 }, barMaxWidth:6 }],
+    backgroundColor: 'transparent',
+    series:[{
+      type:'pie',
+      startAngle:180, endAngle:0,
+      radius:['48%','72%'],
+      center:['50%','78%'],
+      data:[
+        { value:tablePct,  name:'Table', itemStyle:{ color:'#f97316' }, label:{ show:false } },
+        { value:indexPct,  name:'Index', itemStyle:{ color:'#fb923c' }, label:{ show:false } },
+        { value:tablePct+indexPct, itemStyle:{ color:'transparent', opacity:0 }, label:{ show:false }, labelLine:{ show:false }, tooltip:{ show:false } },
+      ],
+      silent:true,
+      labelLine:{ show:false },
+    }],
     tooltip:{ show:false },
   }
 }
-
-/* HexGrid */
-function HexGrid() {
-  const colors = ['#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#22d3ee','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea','#e3e7ea']
-  const R=10, rows=4, cols=8, hexes:React.ReactElement[]=[]
-  let ci=0
-  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) {
-    const x=c*(R*1.75)+(r%2===1?R*0.875:0)+R, y=r*(R*1.52)+R
-    const color=colors[ci%colors.length]; ci++
-    const pts=Array.from({length:6},(_,i)=>{ const a=Math.PI/180*(60*i-30); return `${x+R*0.85*Math.cos(a)},${y+R*0.85*Math.sin(a)}` }).join(' ')
-    hexes.push(<polygon key={`${r}-${c}`} points={pts} fill={color} opacity={0.85} />)
+// 수직 bar (SQL & Function)
+function vertBarOpt(data: number[], labels: string[], color: string) {
+  return {
+    backgroundColor: 'transparent',
+    grid: { top:6, right:6, bottom:22, left:6 },
+    xAxis: { type:'category', data:labels, axisLabel:{ color:'#9fa5ae', fontSize:8, rotate:0, overflow:'truncate', width:28 }, axisTick:{ show:false }, axisLine:{ lineStyle:{ color:'#c9cdd2' } } },
+    yAxis: { type:'value', axisLabel:{ show:false }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } }, min:0 },
+    series:[{ type:'bar', data, itemStyle:{ color, borderRadius:1 }, barMaxWidth:14 }],
+    tooltip:{ trigger:'axis', backgroundColor:'#fff', borderColor:'#c9cdd2', textStyle:{ color:'#282c32', fontSize:11 } },
   }
-  return <svg width="100%" viewBox={`0 0 ${cols*R*1.75+R*2} ${rows*R*1.52+R*2}`} style={{ maxHeight:80 }}>{hexes}</svg>
+}
+// Trend Summary bar (10분 간격, 7포인트)
+function trendBarOpt(data: number[], times: string[]) {
+  const maxVal = Math.max(...data, 1)
+  return {
+    backgroundColor: 'transparent',
+    grid: { top:6, right:4, bottom:22, left:34 },
+    xAxis: { type:'category', data:times, axisLabel:{ color:'#9fa5ae', fontSize:8, interval:1 }, axisTick:{ show:false }, axisLine:{ lineStyle:{ color:'#c9cdd2' } } },
+    yAxis: { type:'value', max: Math.ceil(maxVal*1.3/10)*10, axisLabel:{ color:'#9fa5ae', fontSize:8 }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } } },
+    series:[{ type:'bar', data, itemStyle:{ color:'#3b82f6', borderRadius:1 }, barMaxWidth:18 }],
+    tooltip:{ trigger:'axis', backgroundColor:'#fff', borderColor:'#c9cdd2', textStyle:{ color:'#282c32', fontSize:11 } },
+  }
 }
 
-/* Clock을 독립 컴포넌트로 분리 — 1초 리렌더 격리 */
-function LiveClock() {
-  const [now,setNow] = useState(new Date())
-  useEffect(() => { const t=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(t) },[])
-  const str = now.toLocaleString('ko-KR',{ year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false }).replace(/\. /g,'.').replace(',','')
-  return <span style={{ fontSize:11, color:'var(--text-secondary,#626872)', fontVariantNumeric:'tabular-nums' }}>{str}</span>
+// 연결 링 게이지 — 하단(6시)에서 시작, 시계방향으로 차오름
+function cpuMemGaugeOpt(cpu: number, mem: number) {
+  const W = 16
+  const activeGray = '#dde1e6'
+  const decoGray   = '#edf0f2'
+  return {
+    backgroundColor: 'transparent',
+    series: [
+      // [0] ③ CPU 장식 — 상단 좌
+      {
+        type:'gauge', startAngle:-270, endAngle:-180,
+        min:0, max:100, radius:'85%', center:['50%','50%'],
+        progress:{ show:false },
+        axisLine:{ lineStyle:{ width:W, color:[[1, decoGray]] } },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:0 }]
+      },
+      // [1] ④ MEM 장식 — 상단 우
+      {
+        type:'gauge', startAngle:0, endAngle:90,
+        min:0, max:100, radius:'85%', center:['50%','50%'],
+        progress:{ show:false },
+        axisLine:{ lineStyle:{ width:W, color:[[1, decoGray]] } },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:0 }]
+      },
+      // [2] ⑤ 내부 장식 링
+      {
+        type:'gauge', startAngle:90, endAngle:-270,
+        min:0, max:100, radius:'58%', center:['50%','50%'],
+        progress:{ show:false },
+        axisLine:{ lineStyle:{ width:8, color:[[1, '#edf0f2']] } },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:0 }]
+      },
+      // [3] ② MEM 게이지 — 하단 우 (3시→6시)
+      {
+        type:'gauge', startAngle:0, endAngle:-90,
+        min:0, max:100, radius:'85%', center:['50%','50%'],
+        progress:{ show:true, width:W, itemStyle:{ color:'#10b981' }, roundCap:false },
+        axisLine:{ lineStyle:{ width:W, color:[[1, activeGray]] } },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:mem }]
+      },
+      // [4] ①A CPU 파란 베이스 — 하단 좌 전체 (항상 value=100)
+      {
+        type:'gauge', startAngle:-90, endAngle:-180,
+        min:0, max:100, radius:'85%', center:['50%','50%'],
+        progress:{ show:true, width:W, itemStyle:{ color:'#3b82f6' }, roundCap:false },
+        axisLine:{ lineStyle:{ width:W, color:[[1, activeGray]] } },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:100 }]
+      },
+      // [5] ①B CPU 회색 커버 — 6시쪽부터 (100-cpu)% 가림 → 9시쪽에 cpu% 파란 아크 노출
+      {
+        type:'gauge', startAngle:-90, endAngle:-180,
+        min:0, max:100, radius:'85%', center:['50%','50%'],
+        progress:{ show:true, width:W, itemStyle:{ color:activeGray }, roundCap:false },
+        axisLine:{ show:false },
+        axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+        detail:{ show:false }, title:{ show:false },
+        data:[{ value:100-cpu }]
+      },
+    ],
+    tooltip:{ show:false },
+  }
+}
+// Slow Query scatter
+function sqScatterOpt(dots: SQDot[]) {
+  return {
+    backgroundColor: 'transparent',
+    grid: { top:6, right:8, bottom:24, left:36 },
+    xAxis: { type:'category', data: SQ_TICK_TIMES, axisLabel:{ color:'#9fa5ae', fontSize:8, interval: Math.floor(SQ_TICK_TIMES.length/4) }, axisTick:{ show:false }, axisLine:{ lineStyle:{ color:'#c9cdd2' } } },
+    yAxis: { type:'value', name:'sec', nameTextStyle:{ color:'#9fa5ae', fontSize:8 }, axisLabel:{ color:'#9fa5ae', fontSize:8 }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } }, min:0 },
+    series:[{ type:'scatter', symbolSize:7, data: dots.map(d=>[d.time, d.elapsed, d.pid, d.sqlText]), itemStyle:{ color:'#3b82f6', opacity:0.85 } }],
+    tooltip:{ trigger:'item', formatter:(p: {data:[string,number,number,string]}) => `PID: ${p.data[2]}<br/>${p.data[1].toFixed(3)}s` },
+  }
+}
+// SQL Elapsed List 팝업용 scatter (회색 배경)
+function sqPopupScatterOpt(dots: SQDot[]) {
+  return {
+    backgroundColor: '#ffffff',
+    grid: { top:10, right:12, bottom:28, left:44 },
+    xAxis: { type:'category', data: SQ_TICK_TIMES, axisLabel:{ color:'#9fa5ae', fontSize:9, interval: Math.floor(SQ_TICK_TIMES.length/4) }, axisTick:{ show:false }, axisLine:{ lineStyle:{ color:'#c9cdd2' } } },
+    yAxis: { type:'value', axisLabel:{ color:'#9fa5ae', fontSize:9 }, splitLine:{ lineStyle:{ color:'#e8ebee', type:'solid' } }, min:0 },
+    series:[{ type:'scatter', symbolSize:8, data: dots.map(d=>[d.time, d.elapsed, d.pid]), itemStyle:{ color:'#f59e0b', opacity:0.9 } }],
+    tooltip:{ trigger:'item', formatter:(p: {data:[string,number,number]}) => `PID: ${p.data[2]}<br/>Elapsed: ${p.data[1].toFixed(3)}s` },
+  }
+}
+
+// Dead Tuple 수평 bar
+function deadTupleOpt(items: {name:string; val:number}[]) {
+  return {
+    backgroundColor:'transparent',
+    grid:{ top:4, right:8, bottom:20, left:52 },
+    xAxis:{ type:'value', max:60, axisLabel:{ color:'#9fa5ae', fontSize:8 }, splitLine:{ lineStyle:{ color:'#e3e7ea', type:'dashed' } } },
+    yAxis:{ type:'category', data:items.map(i=>i.name), axisLabel:{ color:'#9fa5ae', fontSize:8, width:44, overflow:'truncate' }, axisTick:{ show:false }, axisLine:{ show:false }, inverse:false },
+    series:[{ type:'bar', data:items.map(i=>i.val), itemStyle:{ color:'#3b82f6', borderRadius:1 }, barMaxWidth:12 }],
+    tooltip:{ trigger:'axis', backgroundColor:'#fff', borderColor:'#c9cdd2', textStyle:{ color:'#282c32', fontSize:10 } },
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
-   STYLES (라이트 테마 CSS 변수 기반)
+   FILTER BAR (database/page.tsx 의 FilterBar 와 동일한 패턴)
+══════════════════════════════════════════════════════════ */
+interface FilterChip {
+  id: string
+  field: string      // display label
+  fieldKey: string   // data key
+  operator: string
+  value: string
+}
+const SQ_OPERATORS = ['==', '!=', 'like', 'not like']
+const SQ_FILTER_FIELDS = [
+  { key:'pid',        label:'PID',            isDefault:true  },
+  { key:'sqlText',    label:'SQL Text',       isDefault:true  },
+  { key:'userName',   label:'User Name',      isDefault:false },
+  { key:'appName',    label:'App Name',       isDefault:false },
+  { key:'clientAddr', label:'Client Address', isDefault:false },
+  { key:'elapsed',    label:'Elapsed Time',   isDefault:false },
+]
+type FilterStep = 'idle' | 'field' | 'operator' | 'value'
+
+function FilterBar({
+  filters, onAdd, onRemove, onClear, fields,
+}: {
+  filters: FilterChip[]
+  onAdd: (chip: FilterChip) => void
+  onRemove: (id: string) => void
+  onClear: () => void
+  fields?: typeof SQ_FILTER_FIELDS
+}) {
+  const activeFields = fields ?? SQ_FILTER_FIELDS
+  const [step, setStep]                 = useState<FilterStep>('idle')
+  const [pendingField, setPendingField] = useState<typeof SQ_FILTER_FIELDS[0] | null>(null)
+  const [pendingOp, setPendingOp]       = useState('')
+  const [inputVal, setInputVal]         = useState('')
+  const [navIdx, setNavIdx]             = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const valueRef     = useRef<HTMLInputElement>(null)
+
+  const dropItems =
+    step === 'field'      ? activeFields
+    : step === 'operator' ? SQ_OPERATORS.map(o => ({ key:o, label:o, isDefault:false }))
+    : []
+
+  useEffect(() => {
+    if (step === 'idle') return
+    const h = (e: MouseEvent) => { if (!containerRef.current?.contains(e.target as Node)) reset() }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [step])
+
+  const reset = () => { setStep('idle'); setPendingField(null); setPendingOp(''); setInputVal(''); setNavIdx(0) }
+  const selectField = (f: typeof activeFields[0]) => { setPendingField(f); setStep('operator'); setNavIdx(0) }
+  const selectOp    = (op: string) => { setPendingOp(op); setStep('value'); setTimeout(() => valueRef.current?.focus(), 10) }
+  const commit = () => {
+    if (!pendingField || !pendingOp || !inputVal.trim()) return
+    onAdd({ id:Date.now().toString(), field:pendingField.label, fieldKey:pendingField.key, operator:pendingOp, value:inputVal.trim() })
+    reset()
+  }
+  const handleDropKey = (e: React.KeyboardEvent) => {
+    if (step === 'field' || step === 'operator') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setNavIdx(i => Math.min(i+1, dropItems.length-1)) }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setNavIdx(i => Math.max(i-1, 0)) }
+      if (e.key === 'Enter') { step === 'field' ? selectField(activeFields[navIdx]) : selectOp(SQ_OPERATORS[navIdx]) }
+      if (e.key === 'Escape') reset()
+    }
+  }
+  const isDropOpen = step === 'field' || step === 'operator'
+  const chipStyle: React.CSSProperties = { display:'inline-flex', alignItems:'center', gap:4, background:'#1e3a6e', color:'#7eb3ff', borderRadius:3, padding:'2px 8px', fontSize:12, flexShrink:0 }
+  const pendingStyle: React.CSSProperties = { ...chipStyle, background:'#1a2d50', color:'#93c5fd', border:'1px dashed #3b5998' }
+
+  return (
+    <div ref={containerRef} style={{ position:'relative', flex:1 }}>
+      <div
+        onClick={() => { if (step === 'idle') { setStep('field'); setNavIdx(0) } }}
+        onKeyDown={handleDropKey}
+        tabIndex={isDropOpen ? 0 : -1}
+        style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:6, minHeight:34, padding:'4px 8px', cursor:step==='idle'?'text':'default', border:`1px solid ${isDropOpen||step==='value'?'#006DFF':'var(--border,#c9cdd2)'}`, borderRadius:isDropOpen?'4px 4px 0 0':4, background:'var(--card-bg,#fff)', outline:'none' }}
+      >
+        {filters.map(f => (
+          <span key={f.id} style={chipStyle}>
+            <span style={{ color:'#93c5fd' }}>{f.field}</span>
+            <span style={{ color:'#7dd3fc', fontSize:11 }}> {f.operator} </span>
+            <b style={{ color:'#fff' }}>{f.value}</b>
+            <button onClick={e=>{e.stopPropagation();onRemove(f.id)}} style={{ background:'none', border:'none', cursor:'pointer', color:'#7eb3ff', fontSize:13, padding:0, lineHeight:1, marginLeft:2 }}>x</button>
+          </span>
+        ))}
+        {pendingField && (
+          <span style={pendingStyle}>
+            <span>{pendingField.label}</span>
+            {pendingOp && <span style={{ color:'#7dd3fc', fontSize:11 }}> {pendingOp}</span>}
+            <button onClick={e=>{e.stopPropagation();reset()}} style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:13, padding:0, lineHeight:1 }}>x</button>
+          </span>
+        )}
+        {step === 'value' && (
+          <input ref={valueRef} value={inputVal} onChange={e=>setInputVal(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commit()}if(e.key==='Escape')reset()}}
+            placeholder="Enter value and press Enter"
+            style={{ flex:1, minWidth:120, border:'none', outline:'none', fontSize:12, background:'transparent', color:'var(--text-primary,#282c32)' }}
+          />
+        )}
+        {step !== 'value' && <span style={{ fontSize:14, color:step==='idle'?'var(--text-muted,#80868f)':'#006DFF', lineHeight:1 }}>|</span>}
+        {(filters.length > 0 || step !== 'idle') && (
+          <button onClick={e=>{e.stopPropagation();reset();onClear()}} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted,#80868f)', fontSize:18, padding:'0 4px', lineHeight:1 }}>x</button>
+        )}
+      </div>
+      {isDropOpen && (
+        <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:450, background:'#fff', border:'1px solid #006DFF', borderTop:'none', borderRadius:'0 0 6px 6px', boxShadow:'0 6px 20px rgba(0,0,0,.25)', maxHeight:260, display:'flex', flexDirection:'column' }}>
+          <div style={{ padding:'8px 14px', fontSize:12, fontWeight:700, color:'#111', borderBottom:'1px solid #f0f0f0', background:'#fafafa' }}>
+            {step === 'field' ? 'Filter Category' : 'Filter Inequality Sign'}
+          </div>
+          <div style={{ flex:1, overflowY:'auto' }}>
+            {dropItems.map((item, i) => (
+              <div key={item.key}
+                onClick={() => step==='field' ? selectField(activeFields[i]) : selectOp(SQ_OPERATORS[i])}
+                onMouseEnter={() => setNavIdx(i)}
+                style={{ padding:'9px 16px', fontSize:13, cursor:'pointer', background:i===navIdx?'#eff6ff':'transparent', color:i===navIdx?'#1d4ed8':'#333', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f8f8f8' }}
+              >
+                {item.label}
+                {item.isDefault && <span style={{ fontSize:11, background:'#3b82f6', color:'#fff', padding:'1px 8px', borderRadius:3, fontWeight:600 }}>Default</span>}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding:'6px 14px', borderTop:'1px solid #f0f0f0', background:'#fafafa', display:'flex', gap:20, fontSize:11, color:'#999' }}>
+            <span>↑↓ navigate</span><span>Enter select</span><span>Esc close</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// HexGrid: 1 hex = 5 sessions, Active=진파랑, Idle=연파랑, 빈칸=중간회색
+function HexGrid({ activeSessions, idleSessions }: { activeSessions: number; idleSessions: number }) {
+  const R = 15, rows = 3, cols = 20
+  const activeHex = Math.ceil(activeSessions / 5)
+  const idleHex   = Math.ceil(idleSessions   / 5)
+
+  function hexColor(idx: number): [string, string] {
+    if (idx < activeHex)            return ['#3b82f6', '#2563eb']  // Active — 진파랑 [fill, stroke]
+    if (idx < activeHex + idleHex) return ['#93c5fd', '#60a5fa']  // Idle   — 연파랑
+    return ['#c8cdd3', '#b0b6be']                                   // 빈칸   — 중간회색 (배경과 구분)
+  }
+
+  const hexes: React.ReactElement[] = []
+  let ci = 0
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = c * (R * 1.78) + (r % 2 === 1 ? R * 0.89 : 0) + R
+    const y = r * (R * 1.56) + R
+    const [fill, stroke] = hexColor(ci++)
+    const pts = Array.from({ length:6 }, (_, i) => {
+      const a = Math.PI / 180 * (60 * i - 30)
+      return `${+(x + R * 0.88 * Math.cos(a)).toFixed(2)},${+(y + R * 0.88 * Math.sin(a)).toFixed(2)}`
+    }).join(' ')
+    hexes.push(<polygon key={`${r}-${c}`} points={pts} fill={fill} stroke={stroke} strokeWidth="0.8" />)
+  }
+  const vw = cols * R * 1.78 + R * 2
+  const vh = rows * R * 1.56 + R * 2
+  return (
+    <svg width="100%" viewBox={`0 0 ${vw} ${vh}`} style={{ display:'block' }}>
+      {hexes}
+    </svg>
+  )
+}
+
+/* LiveClock */
+function LiveClock() {
+  const [now, setNow] = useState<string | null>(null)
+  useEffect(() => {
+    const fmt = () => new Date().toLocaleString('ko-KR',{ year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false }).replace(/\. /g,'.').replace(',','')
+    setNow(fmt())
+    const t = setInterval(() => setNow(fmt()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return <span style={{ fontSize:11, color:'var(--text-secondary,#626872)', fontVariantNumeric:'tabular-nums' }}>{now}</span>
+}
+
+/* ══════════════════════════════════════════════════════════
+   STYLES
 ══════════════════════════════════════════════════════════ */
 const S = {
-  card:    { background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:8, overflow:'hidden' } as React.CSSProperties,
-  header:  { padding:'7px 12px', borderBottom:'1px solid var(--border,#c9cdd2)', fontSize:11, fontWeight:700, color:'var(--text-muted,#80868f)', letterSpacing:0.4, background:'var(--grid-header-bg,#edf0f2)', display:'flex', alignItems:'center', justifyContent:'space-between' } as React.CSSProperties,
-  page:    { display:'flex', flexDirection:'column' as const, height:'100vh', background:'var(--main-bg-color,#e3e7ea)', color:'var(--text-primary,#282c32)', fontFamily:'var(--font-family-base,Pretendard),sans-serif', fontSize:12, overflow:'hidden' },
-  topbar:  { height:40, flexShrink:0, background:'var(--card-bg,#fff)', borderBottom:'1px solid var(--border,#c9cdd2)', display:'flex', alignItems:'center', padding:'0 16px', gap:6, zIndex:10 } as React.CSSProperties,
-  left:    { width:540, flexShrink:0, overflowY:'auto' as const, borderRight:'1px solid var(--border,#c9cdd2)', display:'flex', flexDirection:'column' as const, gap:1, background:'var(--main-bg-color,#e3e7ea)' },
-  center:  { flex:1, minWidth:0, overflowY:'auto' as const, borderRight:'1px solid var(--border,#c9cdd2)', background:'var(--main-bg-color,#e3e7ea)', display:'flex', flexDirection:'column' as const, gap:1 },
-  right:   { width:540, flexShrink:0, overflowY:'auto' as const, background:'var(--main-bg-color,#e3e7ea)', display:'flex', flexDirection:'column' as const, gap:1 },
+  card:   { background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:0, overflow:'hidden' } as React.CSSProperties,
+  hdr:    { padding:'7px 12px', borderBottom:'1px solid var(--border,#c9cdd2)', fontSize:11, fontWeight:700, color:'var(--text-muted,#80868f)', letterSpacing:0.4, background:'var(--grid-header-bg,#edf0f2)', display:'flex', alignItems:'center', justifyContent:'space-between' } as React.CSSProperties,
+  page:   { display:'flex', flexDirection:'column' as const, height:'100vh', background:'var(--main-bg,#e3e7ea)', color:'var(--text-primary,#282c32)', fontSize:12, overflow:'hidden' },
+  topbar: { height:40, flexShrink:0, background:'var(--card-bg,#fff)', borderBottom:'1px solid var(--border,#c9cdd2)', display:'flex', alignItems:'center', padding:'0 16px', gap:6, zIndex:10 } as React.CSSProperties,
+  left:   { overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:1, background:'var(--card-bg,#fff)', minHeight:0 } as React.CSSProperties,
+  center: { overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:1, background:'var(--card-bg,#fff)', minHeight:0 } as React.CSSProperties,
+  right:  { overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:1, background:'var(--card-bg,#fff)', minHeight:0 } as React.CSSProperties,
 }
 
 /* ══════════════════════════════════════════════════════════
-   MAIN COMPONENT
+   MAIN
 ══════════════════════════════════════════════════════════ */
+function SVRTLineChart({ metric, height = 80 }: { metric: typeof SV_RT_METRIC_POOL[0]; height?: number | string }) {
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    legend: { show: false },
+    xAxis: { type: 'category', data: SV_RT_TIMES, axisLabel: { color: '#9fa5ae', fontSize: 9, interval: 11, formatter: (v: string) => v.slice(0, 5) }, axisLine: { lineStyle: { color: '#c9cdd2' } }, splitLine: { show: false } },
+    yAxis: { type: 'value', axisLabel: { color: '#9fa5ae', fontSize: 9 }, splitLine: { lineStyle: { color: '#e3e7ea', type: 'dashed' } } },
+    series: metric.series.map(s => ({
+      name: s.name, type: 'line', data: s.data,
+      lineStyle: { width: 1.5, color: s.color }, itemStyle: { color: s.color },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: s.color + '30' }, { offset: 1, color: s.color + '00' }] } },
+      symbol: 'none', smooth: false,
+    })),
+    grid: { left: 44, right: 10, top: 8, bottom: 20 },
+  }
+  return <ReactECharts option={option} style={{ height }} opts={{ renderer: 'svg' }} />
+}
+
 export default function PostgreSQLSingleView() {
-  // clock은 LiveClock 컴포넌트로 분리됨
-  const [sessionOpen,    setSessionOpen]    = useState(false)
-  const [selectedPid,    setSelectedPid]    = useState<number|null>(null)
-  const [adminOpen,      setAdminOpen]      = useState<Record<string,boolean>>({ vacuum:true, additional:false, alert:false })
-  const toggleAdmin = (k:string) => setAdminOpen(p=>({...p,[k]:!p[k]}))
+  const [bottomTab, setBottomTab]   = useState<'active'|'lock'>('active')
+  const [bottomOpen, setBottomOpen] = useState(false)
+  const [adminOpen, setAdminOpen]   = useState<Record<string,boolean>>({ vacuum:true, alert:false, additional:false })
+  const [slotModal, setSlotModal]   = useState<null|{ title:string; color:string }>(null)
+  const [expandRight, setExpandRight] = useState(false)
+  // Slow Query — SQL Elapsed List 팝업
+  const [sqModal, setSqModal]       = useState(false)
+  // Slow Query — PID 세션 패널 (팝업 내부 우측 슬라이드)
+  const [sqPidPanel, setSqPidPanel] = useState<number|null>(null)
+  // SQL Text 미니 팝업
+  const [sqlTextPopup, setSqlTextPopup] = useState<string|null>(null)
+  // Slow Query — 차트 높이 (리사이즈)
+  const [sqPanelChartH, setSqPanelChartH] = useState(120)
+  const [sqPopupChartH, setSqPopupChartH] = useState(160)
+  // Slow Query — 팝업 크기 (리사이즈)
+  const [sqPopupW, setSqPopupW] = useState(900)
+  const [sqPopupH, setSqPopupH] = useState(600)
+  // Slow Query — 필터 (FilterBar 패턴)
+  const [sqFilters, setSqFilters]       = useState<FilterChip[]>([])
+  const [sqFilterMode, setSqFilterMode] = useState<'OR'|'AND'>('OR')
+
+  // CPU / MEM 시뮬레이터 — echartsInstance 직접 제어 (React re-render 없이 게이지 업데이트)
+  const [cpuVal, setCpuVal] = useState(45)
+  const [memVal, setMemVal] = useState(72)
+  const cpuRef = useRef(45)
+  const memRef = useRef(72)
+  const gaugeEchartsRef = useRef<any>(null)
+  useEffect(() => {
+    const walk = (prev: number, min: number, max: number, step: number) =>
+      Math.min(max, Math.max(min, prev + (Math.random() - 0.5) * step * 2))
+    const t = setInterval(() => {
+      const newCpu = Math.round(walk(cpuRef.current, 20, 92, 8))
+      const newMem = Math.round(walk(memRef.current, 55, 88, 4))
+      cpuRef.current = newCpu
+      memRef.current = newMem
+      // 박스 수치 업데이트 (DOM)
+      setCpuVal(newCpu)
+      setMemVal(newMem)
+      // 게이지 아크 업데이트 — ECharts 인스턴스 직접 호출 (컴포넌트 re-render 없음)
+      const inst = gaugeEchartsRef.current?.getEchartsInstance?.()
+      if (inst) {
+        inst.setOption({ series: [
+          {},                                  // [0] ③ deco: no update
+          {},                                  // [1] ④ deco: no update
+          {},                                  // [2] ⑤ inner ring: no update
+          { data:[{ value:newMem }] },         // [3] ②: MEM
+          { data:[{ value:100 }] },            // [4] ①A: always 100
+          { data:[{ value:100-newCpu }] },     // [5] ①B: gray cover
+        ] })
+      }
+    }, 2000)
+    return () => clearInterval(t)
+  }, [])
+
+  // 차트 높이 리사이즈 핸들러
+  function startResize(e: React.MouseEvent, current: number, setter: (h: number) => void) {
+    e.preventDefault()
+    const startY = e.clientY, startH = current
+    const onMove = (ev: MouseEvent) => setter(Math.max(60, Math.min(400, startH + ev.clientY - startY)))
+    const onUp   = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // 팝업 창 리사이즈 핸들러 (우 / 하 / 우하 모서리)
+  function startPopupResize(e: React.MouseEvent, dir: 'e'|'s'|'se') {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX, startY = e.clientY
+    const startW = sqPopupW, startH = sqPopupH
+    const minW = 600, minH = 400
+    const maxW = window.innerWidth  * 0.96
+    const maxH = window.innerHeight * 0.92
+    const onMove = (ev: MouseEvent) => {
+      if (dir === 'e'  || dir === 'se') setSqPopupW(Math.max(minW, Math.min(maxW, startW + ev.clientX - startX)))
+      if (dir === 's'  || dir === 'se') setSqPopupH(Math.max(minH, Math.min(maxH, startH + ev.clientY - startY)))
+    }
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // 필터 적용 로직 (database/page.tsx ActiveSessionTab 과 동일)
+  function applyFilter(d: SQDot, f: FilterChip): boolean {
+    const val  = String((d as unknown as Record<string,unknown>)[f.fieldKey] ?? '').toLowerCase()
+    const fval = f.value.toLowerCase()
+    switch (f.operator) {
+      case '==':       return val === fval
+      case '!=':       return val !== fval
+      case 'like':     return val.includes(fval)
+      case 'not like': return !val.includes(fval)
+      default:         return true
+    }
+  }
+  const sqFiltered = useMemo(() => {
+    const rows = [...SQ_DOTS]
+    const filtered = sqFilters.length === 0 ? rows
+      : sqFilterMode === 'OR'
+        ? rows.filter(d => sqFilters.some(f  => applyFilter(d, f)))
+        : rows.filter(d => sqFilters.every(f => applyFilter(d, f)))
+    return filtered.sort((a,b) => b.elapsed - a.elapsed)
+  }, [sqFilters, sqFilterMode])
+
+  // Trend Summary — 2슬롯 선택 상태
+  const [trendSlots, setTrendSlots] = useState<[string, string]>(['tps', 'tup_upd'])
+  const [trendPicker, setTrendPicker] = useState<number|null>(null) // 0 or 1 = 선택 드롭다운 열린 슬롯
+  const [rtSelected, setRtSelected]   = useState(['blks_hit', 'rows_hit', 'tps'])
+  const [rtSlideOpen, setRtSlideOpen] = useState<number|null>(null)
+  // accordion: 하나만 열림 — 이미 열린 항목 클릭하면 닫힘
+  const toggleAdmin = (k: string) => setAdminOpen(p => {
+    const next: Record<string,boolean> = { vacuum:false, alert:false, additional:false }
+    if (!p[k]) next[k] = true   // 닫혀있으면 열기, 열려있으면 닫기(그냥 false 유지)
+    return next
+  })
+
+  const trendDataMap = useMemo(() =>
+    Object.fromEntries(TREND_METRICS.map(m => [m.id, genTrendData(m.base, m.range)])),
+  [])
 
   return (
     <div style={S.page}>
@@ -154,398 +644,601 @@ export default function PostgreSQLSingleView() {
       {/* ── TOP BAR ── */}
       <div style={S.topbar}>
         <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted,#80868f)' }}>
-          {['데이터베이스','인스턴스','DB demo3','postgresql-1','싱글뷰','데이터베이스'].map((seg,i,arr) => (
+          {['PostgreSQL','싱글 뷰','207 PG 15','데이터베이스(DB서)','싱글뷰'].map((seg, i, arr) => (
             <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
               <span style={{ color:i===arr.length-1?'var(--text-primary,#282c32)':'var(--text-muted,#80868f)', fontWeight:i===arr.length-1?600:400, cursor:'pointer' }}>{seg}</span>
-              {i<arr.length-1 && <span style={{ color:'var(--border,#c9cdd2)' }}>›</span>}
+              {i < arr.length-1 && <span style={{ color:'var(--border,#c9cdd2)' }}>›</span>}
             </span>
           ))}
         </div>
-        <div style={{ marginLeft:16, display:'flex', gap:4 }}>
-          {['All','postgresql-1','demo3'].map((chip,i) => (
-            <span key={chip} style={{ padding:'2px 8px', borderRadius:4, background:i===0?'#3b82f6':'var(--grid-header-bg,#edf0f2)', color:i===0?'#fff':'var(--text-secondary,#626872)', fontSize:10, fontWeight:600, cursor:'pointer' }}>{chip}</span>
-          ))}
-        </div>
         <div style={{ flex:1 }} />
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
           <span style={{ fontSize:10, color:'var(--text-muted,#80868f)' }}>Live</span>
           <LiveClock />
-        </div>
-        <div style={{ display:'flex', gap:6, marginLeft:12 }}>
-          {['⚙','📋','↗'].map(ic => (
-            <button key={ic} style={{ background:'var(--grid-header-bg,#edf0f2)', border:'1px solid var(--border,#c9cdd2)', color:'var(--text-muted,#80868f)', width:26, height:26, borderRadius:4, cursor:'pointer', fontSize:12 }}>{ic}</button>
-          ))}
+          <span style={{ padding:'3px 10px', background:'#fee2e2', color:'#dc2626', borderRadius:4, fontSize:10, fontWeight:700, cursor:'pointer' }}>0 ⚠</span>
+          <button
+            onClick={() => setExpandRight(p => !p)}
+            style={{ padding:'3px 10px', fontSize:10, fontWeight:600, borderRadius:4, border:'1px solid var(--border,#c9cdd2)', background:expandRight?'#1d4ed8':'var(--card-bg,#fff)', color:expandRight?'#fff':'var(--text-secondary,#626872)', cursor:'pointer' }}
+          >{expandRight ? 'Collapse' : 'Expand'}</button>
         </div>
       </div>
 
       {/* ── MAIN BODY ── */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative' }}>
+      <div style={{ flex:1, display:'grid', gridTemplateColumns:expandRight ? '1fr' : '1fr 1fr 1fr', overflow:'hidden', paddingBottom:bottomOpen ? 292 : 32, gap:1, background:'var(--border,#c9cdd2)' }}>
 
         {/* ══ LEFT ══ */}
-        <div style={S.left}>
+        {!expandRight && (
+          <div style={S.left}>
 
-          {/* Grouping Summary 헤더 */}
-          <div style={{ padding:'8px 12px 4px', fontSize:11, fontWeight:700, color:'var(--text-secondary,#626872)', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--card-bg,#fff)', flexShrink:0 }}>
-            Grouping Summary
-          </div>
+            {/* Grouping Summary */}
+            <div style={{ padding:'6px 12px', fontSize:11, fontWeight:700, color:'var(--text-secondary,#626872)', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--card-bg,#fff)' }}>
+              Grouping Summary
+            </div>
 
-          {/* Statistics & Events */}
-          <div style={S.card}>
-            <div style={S.header}>
-              <span>Statistics &amp; Events</span>
-              <span style={{ color:'#3b82f6', fontSize:10, cursor:'pointer' }}>상세 ›</span>
-            </div>
-            {/* 두 테이블 가로 배치 */}
-            <div style={{ padding:'5px 8px 6px', display:'flex', gap:8 }}>
-              {/* Top Diff Statistics */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:3 }}>Top Diff Statistics(Sum) for 10min</div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
-                  <thead>
-                    <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
-                      {['#','Name','Diff%','Value'].map(h=><th key={h} style={{ padding:'2px 4px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TOP_SESSIONS.map(s=>(
-                      <tr key={s.rank} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)' }}>{s.rank}</td>
-                        <td style={{ padding:'2px 4px', color:'var(--text-secondary,#626872)', maxWidth:46, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.user}</td>
-                        <td style={{ padding:'2px 4px', color:s.cpu>30?'#ef4444':s.cpu>15?'#f59e0b':'var(--text-primary,#282c32)', fontWeight:600 }}>{s.cpu}%</td>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontVariantNumeric:'tabular-nums' }}>{s.elapsed}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Top Events */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:3 }}>Top Event for 10min</div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
-                  <thead>
-                    <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
-                      {['#','Name','Type','Value'].map(h=><th key={h} style={{ padding:'2px 4px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TOP_EVENTS.map(e=>(
-                      <tr key={e.rank} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)' }}>{e.rank}</td>
-                        <td style={{ padding:'2px 4px', color:'var(--text-secondary,#626872)', maxWidth:40, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.event}</td>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontSize:8 }}>Wait</td>
-                        <td style={{ padding:'2px 4px' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:3 }}>
-                            <div style={{ width:Math.round(e.pct*0.5), height:8, background:'#3b82f6', borderRadius:1, minWidth:2 }} />
-                            <span style={{ color:'var(--text-muted,#80868f)', fontSize:8, fontVariantNumeric:'tabular-nums' }}>{e.pct}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* SQL & Function */}
-          <div style={S.card}>
-            <div style={S.header}>
-              <span>SQL &amp; Function</span>
-              <span style={{ color:'#3b82f6', fontSize:10, cursor:'pointer' }}>상세 ›</span>
-            </div>
-            <div style={{ padding:'5px 8px 6px', display:'flex', gap:8 }}>
-              {/* Top SQL by Elapsed */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:3 }}>Top SQL for 10min Order By Temp Blks Read</div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
-                  <thead>
-                    <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
-                      {['#','SQL','ms'].map(h=><th key={h} style={{ padding:'2px 4px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TOP_SQL.map(s=>(
-                      <tr key={s.rank} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)' }}>{s.rank}</td>
-                        <td style={{ padding:'2px 4px', maxWidth:55, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          <span style={{ color:'var(--text-secondary,#626872)' }}>{s.sql.substring(0,18)}</span>
-                        </td>
-                        <td style={{ padding:'2px 4px', color:s.elapsed>3000?'#ef4444':s.elapsed>1000?'#f59e0b':'var(--text-primary,#282c32)', fontWeight:600, fontVariantNumeric:'tabular-nums' }}>{s.elapsed.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Top Function by Total Time */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:3 }}>Top Function for 10min Order By Total Time</div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
-                  <thead>
-                    <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
-                      {['#','Function','ms'].map(h=><th key={h} style={{ padding:'2px 4px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TOP_FUNCTION.map(f=>(
-                      <tr key={f.rank} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
-                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)' }}>{f.rank}</td>
-                        <td style={{ padding:'2px 4px', maxWidth:55, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          <span style={{ color:'var(--text-secondary,#626872)' }}>{f.func}</span>
-                        </td>
-                        <td style={{ padding:'2px 4px', color:'#a78bfa', fontWeight:600, fontVariantNumeric:'tabular-nums' }}>{f.totalMs.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Object */}
-          <div style={S.card}>
-            <div style={S.header}><span>Object</span></div>
-            {/* Index Scan vs Table Scan */}
-            <div style={{ padding:'6px 10px 4px' }}>
-              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:4 }}>Index Scan vs. Table Scan</div>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <div style={{ flex:1 }}>
-                  <ReactECharts option={donutOpt(1)} style={{ height:70 }} opts={{ renderer:'svg' }} />
-                </div>
-                <div style={{ textAlign:'center', fontSize:10, fontWeight:700, color:'var(--text-muted,#80868f)' }}>VS</div>
-                <div style={{ flex:1 }}>
-                  <ReactECharts option={donutOpt(99)} style={{ height:70 }} opts={{ renderer:'svg' }} />
-                </div>
-              </div>
-              <div style={{ display:'flex', justifyContent:'space-around', fontSize:9, color:'var(--text-muted,#80868f)', marginTop:-6, marginBottom:4 }}>
-                <span>Index <b style={{ color:'#3b82f6' }}>1%</b></span>
-                <span>Table <b style={{ color:'#ef4444' }}>99%</b></span>
-              </div>
-            </div>
-            {/* Top Object by Scan */}
-            <div style={{ borderTop:'1px solid var(--border,#c9cdd2)', padding:'5px 10px 6px' }}>
-              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:4 }}>Top Object for 10min Order By Scan</div>
-              {[
-                { name:'ingredient_detail', val:75800 },
-                { name:'ingredient_log',    val:40900 },
-                { name:'pg_sos_detail',     val:24600 },
-                { name:'ingredient_info',   val:18200 },
-                { name:'pg_soa_events',     val: 9100 },
-              ].map(o=>(
-                <div key={o.name} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
-                  <span style={{ fontSize:9, color:'var(--text-secondary,#626872)', width:90, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flexShrink:0 }}>{o.name}</span>
-                  <div style={{ flex:1, height:10, background:'var(--main-bg-color,#e3e7ea)', borderRadius:2, overflow:'hidden' }}>
-                    <div style={{ width:`${Math.round(o.val/75800*100)}%`, height:'100%', background:'#3b82f6', borderRadius:2 }} />
+            {/* ── Statistics & Events ── */}
+            <div style={S.card}>
+              <div style={S.hdr}><span>Statistics &amp; Events</span></div>
+              <div style={{ padding:'6px 10px 8px', display:'flex', gap:8 }}>
+                {/* 좌: 수평 bar — Tup 통계 */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:6 }}>
+                    Top Diff Statistics(Sum) for <span style={{ color:'#f97316', fontWeight:700 }}>10min</span>
                   </div>
-                  <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', fontVariantNumeric:'tabular-nums', flexShrink:0, width:40, textAlign:'right' }}>{(o.val/1000).toFixed(1)}K</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Trend Summary */}
-          <div style={S.card}>
-            <div style={S.header}><span>Trend Summary</span></div>
-            <div style={{ padding:'6px 10px' }}>
-              {[
-                { label:'DB Stat: Tup Updated (count)', sub:'Tup Updated (count)', data:Array.from({length:12},(_,i)=>+(12000+Math.sin(i*0.8)*3000+(Math.random()-0.5)*2000).toFixed(0)), color:'#3b82f6' },
-                { label:'DB Stat: (OS) Cpu  Usage (%)', sub:'(OS) Cpu  Usage (%)',  data:Array.from({length:12},()=>+(Math.random()*0.6+0.1).toFixed(2)), color:'#3b82f6' },
-              ].map(t => (
-                <div key={t.label} style={{ marginBottom:8 }}>
-                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:2 }}>{t.label}</div>
-                  <ReactECharts option={trendBarOpt(t.data, t.color)} style={{ height:40, width:'100%' }} opts={{ renderer:'svg' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ══ CENTER ══ */}
-        <div style={S.center}>
-
-          {/* Overview */}
-          <div style={{ ...S.card, margin:0, borderRadius:0, flexShrink:0 }}>
-            <div style={S.header}><span>Overview</span></div>
-            <div style={{ padding:'12px 16px' }}>
-              <div style={{ display:'flex', alignItems:'flex-start', gap:16, marginBottom:12 }}>
-                <div style={{ width:48, height:48, borderRadius:10, background:'linear-gradient(135deg,#336791,#1a3a5c)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, color:'#fff', fontWeight:800, flexShrink:0 }}>PG</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary,#282c32)', marginBottom:4 }}>postgresql-1 <span style={{ fontSize:10, color:'var(--text-muted,#80868f)', fontWeight:400 }}>/ demo3</span></div>
-                  <div style={{ display:'flex', gap:16 }}>
-                    {[{label:'● Active',value:11,color:'#22c55e'},{label:'○ Idle',value:20,color:'#9fa5ae'},{label:'⚠ Wait',value:2,color:'#f59e0b'},{label:'✕ Idle Trans',value:1,color:'#bec4cb'}].map(s => (
-                      <div key={s.label} style={{ textAlign:'center' }}>
-                        <div style={{ fontSize:16, fontWeight:700, color:s.color }}>{s.value}</div>
-                        <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', whiteSpace:'nowrap' }}>{s.label}</div>
+                  {TUP_STATS.map(s => (
+                    <div key={s.name} style={{ marginBottom:5 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
+                        <span style={{ fontSize:9, color:'var(--text-secondary,#626872)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:80 }}>{s.name}</span>
+                        {s.pct >= 30 && <span style={{ fontSize:9, color:'#3b82f6', fontWeight:700, flexShrink:0 }}>{s.pct}%</span>}
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ width:110, flexShrink:0 }}>
-                  <ReactECharts option={donutOpt(31)} style={{ height:90, width:110 }} opts={{ renderer:'svg' }} />
-                  <div style={{ textAlign:'center', fontSize:9, color:'var(--text-muted,#80868f)', marginTop:-8 }}>Connection Usage</div>
-                </div>
-              </div>
-              <div style={{ marginBottom:12 }}><HexGrid /></div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
-                {[
-                {label:'Alert',    color:'#ef4444', items:[{k:'Critical',v:0,c:'#ef4444'},{k:'Warning',v:2,c:'#f59e0b'},{k:'Total',v:2,c:'#6b7280'}]},
-                {label:'Vacuum',   color:'#f59e0b', items:[{k:'Current Age',v:'2h13m',c:'#ef4444'},{k:'Usable Age',v:'2.1B',c:'#6b7280'},{k:'Age Used',v:'0.1%',c:'#22c55e'}]},
-                {label:'Replication',color:'#3b82f6',items:[{k:'Primary',v:1,c:'#3b82f6'},{k:'Stand By',v:1,c:'#22c55e'},{k:'Lag',v:'0ms',c:'#22c55e'}]},
-                {label:'Check Point',color:'#6b7280',items:[{k:'Backend Write',v:0,c:'#22c55e'},{k:'Avg Write',v:'2.4ms',c:'#6b7280'},{k:'Avg Write Time',v:'0.1ms',c:'#6b7280'}]},
-              ].map(s => (
-                  <div key={s.label} style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'6px 8px' }}>
-                    <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', fontWeight:700, marginBottom:4, borderBottom:'1px solid var(--border-light,#d8dbde)', paddingBottom:3 }}>{s.label}</div>
-                    <div style={{ display:'flex', justifyContent:'space-between' }}>
-                      {s.items.map(it=>(
-                        <div key={it.k} style={{ textAlign:'center' }}>
-                          <div style={{ fontSize:11, fontWeight:700, color:it.c }}>{it.v}</div>
-                          <div style={{ fontSize:8, color:'var(--text-muted,#80868f)', whiteSpace:'nowrap' }}>{it.k}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <span style={{ fontSize:10, color:'var(--text-secondary,#626872)' }}>Buffer Cache Hit Ratio</span>
-                <span style={{ fontSize:18, fontWeight:700, color:'#22c55e' }}>91.47%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Admin Reference */}
-          <div style={{ ...S.card, margin:0, borderRadius:0, flexShrink:0 }}>
-            <div style={S.header}><span>Admin Reference</span></div>
-            {[
-              { key:'vacuum', label:'Vacuum', content:(
-                <div style={{ padding:'8px 12px', fontSize:11 }}>
-                  {/* Top Dead Tuple */}
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:4 }}>Top Dead Tuple for Object</div>
-                  {[
-                    { name:'public.orders',    val:12480 },
-                    { name:'public.sessions',  val: 8320 },
-                    { name:'public.audit_log', val: 4190 },
-                    { name:'public.products',  val: 1840 },
-                  ].map(o=>(
-                    <div key={o.name} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                      <span style={{ fontSize:10, color:'var(--text-secondary,#626872)', width:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flexShrink:0 }}>{o.name}</span>
-                      <div style={{ flex:1, height:10, background:'var(--main-bg-color,#e3e7ea)', borderRadius:2, overflow:'hidden' }}>
-                        <div style={{ width:`${Math.round(o.val/12480*100)}%`, height:'100%', background:'#f59e0b', borderRadius:2 }} />
+                      <div style={{ height:9, background:'var(--main-bg,#e3e7ea)', borderRadius:2, overflow:'hidden' }}>
+                        <div style={{ width:`${s.pct}%`, height:'100%', background: s.pct > 50 ? '#3b82f6' : '#c9cdd2', borderRadius:2, transition:'width .3s' }} />
                       </div>
-                      <span style={{ fontSize:10, color:'var(--text-muted,#80868f)', width:42, textAlign:'right', fontVariantNumeric:'tabular-nums', flexShrink:0 }}>{o.val.toLocaleString()}</span>
                     </div>
                   ))}
-                  {/* Top Vacuuming Process */}
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:4, marginTop:10 }}>Top Vacuuming Process (sec)</div>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                    <thead><tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>{['Table','Type','Phase','Duration'].map(h=><th key={h} style={{ padding:'4px 8px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}</tr></thead>
-                    <tbody>{[
-                      ['public.orders',  'AUTO',  'index cleanup', '124s'],
-                      ['public.sessions','MANUAL','heap scan',     ' 47s'],
-                    ].map(row=>(<tr key={row[0]} style={{ borderTop:'1px solid var(--border-light,#d8dbde)' }}>{row.map((c,ci)=><td key={ci} style={{ padding:'4px 8px', color:ci===3?'#f59e0b':'var(--text-secondary,#626872)', fontWeight:ci===3?600:400 }}>{c}</td>)}</tr>))}</tbody>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, color:'var(--text-muted,#80868f)', marginTop:2 }}>
+                    {[0,50,100,150].map(v=><span key={v}>{v}</span>)}
+                  </div>
+                </div>
+                {/* 우: Top Event 표 */}
+                <div style={{ width:130, flexShrink:0 }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:6 }}>
+                    Top Event for <span style={{ color:'#f97316', fontWeight:700 }}>10min</span>
+                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
+                    <thead>
+                      <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'left' }}> </th>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'left' }}>Type</th>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'left' }}>Event</th>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'right' }}>Cnt</th>
+                      </tr>
+                    </thead>
+                    <tbody>{TOP_EVENTS.map(e=>(
+                      <tr key={e.rank} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
+                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:700 }}>{e.rank}st</td>
+                        <td style={{ padding:'2px 4px', color:'var(--text-secondary,#626872)', maxWidth:34, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.type}</td>
+                        <td style={{ padding:'2px 4px', color:'var(--text-secondary,#626872)', maxWidth:36, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.event}</td>
+                        <td style={{ padding:'2px 4px', color:'var(--text-primary,#282c32)', fontWeight:700, textAlign:'right' }}>{e.cnt}</td>
+                      </tr>
+                    ))}</tbody>
                   </table>
                 </div>
-              )},
-              { key:'alert', label:'Alert Logs', content:(
-                <div style={{ padding:'6px 12px' }}>
-                  {[{level:'ERROR',msg:'could not serialize access due to concurrent update',time:'13:21:08'},{level:'WARN',msg:'autovacuum: table "demo3.public.orders" needs analyze',time:'13:18:44'},{level:'WARN',msg:'checkpoint request taking too long',time:'13:05:12'}].map((log,i)=>(
-                    <div key={i} style={{ display:'flex', gap:8, padding:'4px 0', borderBottom:'1px solid var(--border-light,#d8dbde)', alignItems:'flex-start' }}>
-                      <span style={{ padding:'1px 5px', borderRadius:3, fontSize:9, fontWeight:700, background:log.level==='ERROR'?'#fee2e2':'#fef9c3', color:log.level==='ERROR'?'#dc2626':'#a16207', flexShrink:0 }}>{log.level}</span>
-                      <span style={{ fontSize:10, color:'var(--text-secondary,#626872)', flex:1, lineHeight:1.4 }}>{log.msg}</span>
-                      <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', flexShrink:0 }}>{log.time}</span>
+              </div>
+            </div>
+
+            {/* ── SQL & Function ── */}
+            <div style={S.card}>
+              <div style={S.hdr}><span>SQL &amp; Function</span></div>
+              <div style={{ padding:'6px 10px 8px', display:'flex', gap:8 }}>
+                {/* 좌: Top SQL bar */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:4, lineHeight:1.4 }}>
+                    Top SQL for <span style={{ color:'#f97316', fontWeight:700 }}>10min</span> Order By <span style={{ color:'#3b82f6', fontWeight:700, cursor:'pointer' }}>Calls</span> <span style={{ fontSize:8 }}>↗</span>
+                  </div>
+                  {SQL_CALLS.length > 0
+                    ? <ReactECharts option={vertBarOpt(SQL_CALLS, SQL_CALLS.map((_,i)=>`SQL${i+1}`), '#3b82f6')} style={{ height:90 }} opts={{ renderer:'svg' }} />
+                    : <div style={{ height:90, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'var(--text-muted,#80868f)', border:'1px dashed var(--border,#c9cdd2)', borderRadius:4 }}>데이터가 없습니다.</div>
+                  }
+                </div>
+                {/* 우: Top Function */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:4, lineHeight:1.4 }}>
+                    Top Function for <span style={{ color:'#f97316', fontWeight:700 }}>10min</span> Order By <span style={{ color:'#3b82f6', fontWeight:700, cursor:'pointer' }}>Calls</span> <span style={{ fontSize:8 }}>↗</span>
+                  </div>
+                  {FUNC_CALLS.length > 0
+                    ? <ReactECharts option={vertBarOpt(FUNC_CALLS, FUNC_CALLS.map((_,i)=>`Fn${i+1}`), '#a78bfa')} style={{ height:90 }} opts={{ renderer:'svg' }} />
+                    : <div style={{ height:90, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'var(--text-muted,#80868f)', border:'1px dashed var(--border,#c9cdd2)', borderRadius:4 }}>데이터가 없습니다.</div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* ── Object ── */}
+            <div style={S.card}>
+              <div style={S.hdr}><span>Object</span></div>
+              <div style={{ padding:'6px 10px 8px', display:'flex', gap:8 }}>
+                {/* 좌: 반원 게이지 */}
+                <div style={{ flex:1, minWidth:0, position:'relative' }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:2 }}>Index Scan vs. Table Scan</div>
+                  <div style={{ position:'relative' }}>
+                    <ReactECharts option={halfGaugeOpt(1, 99)} style={{ height:100 }} opts={{ renderer:'svg' }} />
+                    <div style={{ position:'absolute', top:'44%', left:0, right:0, textAlign:'center', fontSize:11, fontWeight:700, color:'var(--text-muted,#80868f)' }}>VS</div>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, marginTop:-8, padding:'0 2px' }}>
+                      <span style={{ color:'var(--text-muted,#80868f)' }}>Table<br/><b style={{ color:'#f97316' }}>1%</b></span>
+                      <span style={{ color:'var(--text-muted,#80868f)', textAlign:'right' }}>Index<br/><b style={{ color:'#f97316' }}>99%</b></span>
+                    </div>
+                  </div>
+                </div>
+                {/* 우: Top Object 표 */}
+                <div style={{ width:130, flexShrink:0 }}>
+                  <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:6 }}>
+                    Top Object for <span style={{ color:'#f97316', fontWeight:700 }}>10min</span> Order By Scan
+                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
+                    <thead>
+                      <tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'left' }}> </th>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'left' }}>Name</th>
+                        <th style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:600, textAlign:'right' }}>Scan</th>
+                      </tr>
+                    </thead>
+                    <tbody>{TOP_OBJECTS.map((o, i)=>(
+                      <tr key={o.name} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)' }}>
+                        <td style={{ padding:'2px 4px', color:'var(--text-muted,#80868f)', fontWeight:700 }}>{i+1}st</td>
+                        <td style={{ padding:'2px 4px', color:'var(--text-secondary,#626872)', maxWidth:58, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{o.name}</td>
+                        <td style={{ padding:'2px 4px', color:'#3b82f6', fontWeight:600, textAlign:'right' }}>{o.val}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Trend Summary ── */}
+            <div style={{ ...S.card, position:'relative', flex:1 }}>
+              <div style={S.hdr}><span>Trend Summary</span></div>
+              <div style={{ padding:'8px 10px 10px' }}>
+                {trendSlots.map((metricId, slotIdx) => {
+                  const meta = TREND_METRICS.find(m => m.id === metricId)!
+                  const data = trendDataMap[metricId] ?? []
+                  return (
+                    <div key={slotIdx} style={{ marginBottom: slotIdx === 0 ? 14 : 0 }}>
+                      {/* 지표명 — 클릭하면 picker 열림 */}
+                      <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                        <span>DB Stat:</span>
+                        <span
+                          onClick={() => setTrendPicker(p => p === slotIdx ? null : slotIdx)}
+                          style={{ color:'#3b82f6', fontWeight:700, cursor:'pointer', borderBottom:'1px solid #3b82f6', lineHeight:1.2 }}
+                        >{meta.label}</span>
+                        <span>({meta.unit})</span>
+                        <span style={{ fontSize:8, color:'#3b82f6', cursor:'pointer' }}>↗</span>
+                      </div>
+                      {/* 지표 선택 드롭다운 */}
+                      {trendPicker === slotIdx && (
+                        <div style={{ position:'absolute', left:8, zIndex:50, background:'#fff', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, boxShadow:'0 4px 16px rgba(0,0,0,.12)', minWidth:160, padding:'4px 0', fontSize:10 }}>
+                          {TREND_METRICS.map(m => (
+                            <div
+                              key={m.id}
+                              onClick={() => {
+                                const next: [string,string] = [...trendSlots] as [string,string]
+                                next[slotIdx] = m.id
+                                setTrendSlots(next)
+                                setTrendPicker(null)
+                              }}
+                              style={{ padding:'5px 12px', cursor:'pointer', color: m.id===metricId ? '#1d4ed8' : 'var(--text-secondary,#626872)', background: m.id===metricId ? '#eff6ff' : 'transparent', fontWeight: m.id===metricId ? 700 : 400 }}
+                              onMouseEnter={e => { if (m.id !== metricId) (e.currentTarget as HTMLDivElement).style.background='var(--main-bg,#e3e7ea)' }}
+                              onMouseLeave={e => { if (m.id !== metricId) (e.currentTarget as HTMLDivElement).style.background='transparent' }}
+                            >DB Stat: {m.label} ({m.unit})</div>
+                          ))}
+                        </div>
+                      )}
+                      {/* bar 차트 */}
+                      <ReactECharts option={trendBarOpt(data, TREND_TIMES)} style={{ height:100, width:'100%' }} opts={{ renderer:'svg' }} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ══ CENTER ══ */}
+        {!expandRight && (
+          <div style={S.center}>
+
+            {/* ── Overview ── */}
+            <div style={{ ...S.card, flexShrink:0, background:'var(--main-bg,#e3e7ea)', border:'none' }}>
+              <div style={{ padding:'10px 16px 4px', fontSize:14, fontWeight:700, color:'var(--text-primary,#282c32)' }}>Overview</div>
+
+              {/* DB Info + 링 게이지 */}
+              <div style={{ padding:'8px 16px 12px', display:'flex', alignItems:'center', gap:16, justifyContent:'space-between' }}>
+
+                {/* 좌: Logo + Active/Idle 카드 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                    <div style={{ width:28, height:28, borderRadius:6, background:'linear-gradient(135deg,#336791,#1a3a5c)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:'#fff', fontWeight:800, flexShrink:0 }}>PG</div>
+                    <span style={{ fontSize:10, fontWeight:600, color:'var(--text-secondary,#626872)' }}>PostgreSQL</span>
+                  </div>
+                  {[
+                    { label:'Active', value:0,  color:'#3b82f6', maxBar:100 },
+                    { label:'Idle',   value:59, color:'#60d0e8', maxBar:100 },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:8, padding:'8px 12px', minWidth:140 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                        <div style={{ width:10, height:10, borderRadius:'50%', background:s.color, flexShrink:0 }} />
+                        <span style={{ fontSize:10, color:'var(--text-muted,#80868f)' }}>{s.label}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'flex-end', gap:8 }}>
+                        <span style={{ fontSize:22, fontWeight:700, color:'var(--text-primary,#282c32)', lineHeight:1 }}>{s.value}</span>
+                        <div style={{ flex:1, height:5, background:'var(--border,#c9cdd2)', borderRadius:3, overflow:'hidden', marginBottom:4 }}>
+                          <div style={{ width:`${Math.min(s.value/s.maxBar*100, 100)}%`, minWidth: s.value>0?'4px':'0', height:'100%', background:s.color, borderRadius:3 }} />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              )},
-              { key:'additional', label:'Additional Information', content:(
-                <div style={{ padding:'8px 12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:11 }}>
-                  {[['PG Version','15.3'],['Max Connections','200'],['Shared Buffers','1024 MB'],['WAL Level','replica'],['Archive Mode','on'],['Autovacuum','on']].map(([k,v])=>(
-                    <div key={k} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid var(--border-light,#d8dbde)', paddingBottom:4 }}>
+
+                {/* 중앙: CPU / MEM 반원 하단 게이지 */}
+                <div style={{ flex:1, minWidth:220, maxWidth:280, flexShrink:0, position:'relative', display:'flex', flexDirection:'column', alignItems:'center' }}>
+                  <ReactECharts ref={gaugeEchartsRef} option={cpuMemGaugeOpt(cpuVal, memVal)} style={{ height:210, width:'100%' }} />
+                  {/* 중앙: Connection 라벨(위) + 퍼센트(아래) */}
+                  <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center', pointerEvents:'none' }}>
+                    <div style={{ fontSize:10, fontWeight:600, color:'var(--text-muted,#80868f)', letterSpacing:0.5, marginBottom:2 }}>Connection</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary,#282c32)', lineHeight:1 }}>18%</div>
+                  </div>
+                  {/* CPU 박스 */}
+                  <div style={{ position:'absolute', top:'50%', left:0, transform:'translateY(-50%)', background:'#fff', border:'1px solid var(--border,#c9cdd2)', borderRadius:8, boxShadow:'0 2px 8px rgba(0,0,0,.10)', padding:'6px 8px', textAlign:'center', minWidth:52 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:'#3b82f6', lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{cpuVal}%</div>
+                    <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginTop:3, fontWeight:600 }}>CPU</div>
+                  </div>
+                  {/* MEM 박스 */}
+                  <div style={{ position:'absolute', top:'50%', right:0, transform:'translateY(-50%)', background:'#fff', border:'1px solid var(--border,#c9cdd2)', borderRadius:8, boxShadow:'0 2px 8px rgba(0,0,0,.10)', padding:'6px 8px', textAlign:'center', minWidth:52 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:'#10b981', lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{memVal}%</div>
+                    <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginTop:3, fontWeight:600 }}>MEM</div>
+                  </div>
+                  {/* 하단 100% 마커 (두 아크가 만나는 지점) */}
+                  <div style={{ position:'absolute', bottom:'6%', left:'50%', transform:'translateX(-50%)', fontSize:9, color:'#b0b6be', letterSpacing:0.3, whiteSpace:'nowrap' }}>100%</div>
+                </div>
+
+                {/* 우: Lock/Long 카드 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:6, paddingTop:34 }}>
+                  {[
+                    { label:'Lock', value:0, color:'#ef4444' },
+                    { label:'Long', value:0, color:'#f59e0b' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:8, padding:'8px 12px', minWidth:140 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                        <div style={{ width:10, height:10, borderRadius:'50%', background:s.color, flexShrink:0 }} />
+                        <span style={{ fontSize:10, color:'var(--text-muted,#80868f)' }}>{s.label}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'flex-end', gap:8 }}>
+                        <span style={{ fontSize:22, fontWeight:700, color:'var(--text-primary,#282c32)', lineHeight:1 }}>{s.value}</span>
+                        <div style={{ flex:1, height:5, background:'var(--border,#c9cdd2)', borderRadius:3, overflow:'hidden', marginBottom:4 }}>
+                          <div style={{ width:`${Math.min(s.value, 100)}%`, minWidth: s.value>0?'4px':'0', height:'100%', background:s.color, borderRadius:3 }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 헥사곤 그리드 — Active:0, Idle:59 */}
+              <div style={{ padding:'0 12px 8px' }}><HexGrid activeSessions={0} idleSessions={59} /></div>
+
+              {/* 인포 카드 4개 — 1행 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8, padding:'8px 12px 12px' }}>
+
+                {/* Alert */}
+                <div style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 10px' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-secondary,#626872)', marginBottom:8, display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ color:'#f59e0b' }}>▲</span> Alert
+                  </div>
+                  {[['Critical','0','#ef4444'],['Warning','0','#f59e0b']].map(([k,v,c])=>(
+                    <div key={k} style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:10 }}>
+                      <span style={{ color:'var(--text-muted,#80868f)' }}>{k}</span>
+                      <span style={{ color:c, fontWeight:700 }}>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ borderTop:'1px solid var(--border-light,#d8dbde)', marginTop:6, paddingTop:6 }}>
+                    <div style={{ fontSize:9, color:'var(--text-muted,#80868f)' }}>Total</div>
+                    <div style={{ fontSize:20, fontWeight:700, color:'var(--text-primary,#282c32)', textAlign:'center' }}>0</div>
+                  </div>
+                </div>
+
+                {/* Vacuum */}
+                <div style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 10px' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-secondary,#626872)', marginBottom:8, display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ color:'#3b82f6' }}>⊙</span> Vacuum
+                  </div>
+                  {[['Current Age','162M'],['Usable Age','38M']].map(([k,v])=>(
+                    <div key={k} style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:10 }}>
+                      <span style={{ color:'var(--text-muted,#80868f)' }}>{k}</span>
+                      <span style={{ color:'var(--text-primary,#282c32)', fontWeight:600 }}>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop:4 }}>
+                    <div style={{ fontSize:9, color:'var(--text-muted,#80868f)', marginBottom:3 }}>Age Used</div>
+                    <div style={{ fontSize:16, fontWeight:700, color:'var(--text-primary,#282c32)', marginBottom:3 }}>81.02%</div>
+                    <div style={{ height:4, background:'var(--main-bg,#e3e7ea)', borderRadius:2, overflow:'hidden' }}>
+                      <div style={{ width:'81%', height:'100%', background:'#f97316', borderRadius:2 }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Replication */}
+                <div style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 10px' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-secondary,#626872)', marginBottom:8, display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ color:'#6b7280' }}>▪</span> Replication
+                  </div>
+                  {[['Primary',''],['Stand By',''],['Lag','']].map(([k,v])=>(
+                    <div key={k} style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:10 }}>
                       <span style={{ color:'var(--text-muted,#80868f)' }}>{k}</span>
                       <span style={{ color:'var(--text-primary,#282c32)', fontWeight:600 }}>{v}</span>
                     </div>
                   ))}
                 </div>
-              )},
-            ].map(item=>(
-              <div key={item.key} style={{ borderTop:'1px solid var(--border,#c9cdd2)' }}>
-                <button onClick={()=>toggleAdmin(item.key)} style={{ width:'100%', background:'none', border:'none', cursor:'pointer', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', color:'var(--text-secondary,#626872)', fontSize:11, fontWeight:600 }}>
-                  <span>{item.label}</span>
-                  <span style={{ transition:'transform .2s', transform:adminOpen[item.key]?'rotate(90deg)':'none', fontSize:10 }}>›</span>
-                </button>
-                {adminOpen[item.key] && item.content}
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* ══ RIGHT ══ */}
+                {/* Check Point */}
+                <div style={{ background:'var(--card-bg,#fff)', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 10px' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-secondary,#626872)', marginBottom:8, display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ color:'#22c55e' }}>✓</span> Check Point
+                  </div>
+                  {[['Backend Write','24%'],['Avg Write','9M'],['Avg Write Time','0s']].map(([k,v])=>(
+                    <div key={k} style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:10 }}>
+                      <span style={{ color:'var(--text-muted,#80868f)' }}>{k}</span>
+                      <span style={{ color:'var(--text-primary,#282c32)', fontWeight:600 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+
+            {/* ── Admin Reference ── */}
+            <div style={{ ...S.card, flex:1 }}>
+              <div style={{ padding:'12px 16px', fontSize:14, fontWeight:700, color:'var(--text-primary,#282c32)', borderBottom:'1px solid var(--border,#c9cdd2)' }}>Admin Reference</div>
+
+              {/* Vacuum — 기본 열림 */}
+              <div style={{ border:'1px solid var(--border,#c9cdd2)', margin:12, borderRadius:6, overflow:'hidden' }}>
+                <button onClick={() => toggleAdmin('vacuum')} style={{ width:'100%', background: adminOpen.vacuum ? 'var(--card-bg,#fff)' : 'var(--grid-header-bg,#edf0f2)', border:'none', cursor:'pointer', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', color:'var(--text-primary,#282c32)', fontSize:12, fontWeight:700 }}>
+                  <span>Vacuum</span>
+                  <span style={{ fontSize:12, color:'var(--text-muted,#80868f)', transition:'transform .2s', display:'inline-block', transform: adminOpen.vacuum ? 'rotate(180deg)' : 'none' }}>∨</span>
+                </button>
+                {adminOpen.vacuum && (
+                  <div style={{ padding:'10px 12px', display:'flex', gap:8 }}>
+                    {/* 좌: Top Dead Tuple for Object bar */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:10, color:'var(--text-muted,#80868f)', marginBottom:6 }}>Top Dead Tuple for Object</div>
+                      <ReactECharts option={deadTupleOpt([
+                        { name:'ora_s...', val:50 },
+                        { name:'ora_s...', val:8  },
+                        { name:'ora_d...', val:4  },
+                        { name:'ora_d...', val:2  },
+                        { name:'ora_d...', val:1  },
+                      ])} style={{ height:130 }} opts={{ renderer:'svg' }} />
+                    </div>
+                    {/* 우: Top Vacuuming Process bar (빈 상태) */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:10, color:'var(--text-muted,#80868f)', marginBottom:6 }}>Top Vacuuming Process (sec)</div>
+                      <ReactECharts option={deadTupleOpt([])} style={{ height:130 }} opts={{ renderer:'svg' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional Information */}
+              <div style={{ border:'1px solid var(--border,#c9cdd2)', margin:'0 12px 12px', borderRadius:6, overflow:'hidden' }}>
+                <button onClick={() => toggleAdmin('additional')} style={{ width:'100%', background: adminOpen.additional ? 'var(--card-bg,#fff)' : 'var(--grid-header-bg,#edf0f2)', border:'none', cursor:'pointer', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', color:'var(--text-primary,#282c32)', fontSize:12, fontWeight:700 }}>
+                  <span>Additional Information</span>
+                  <span style={{ fontSize:12, color:'var(--text-muted,#80868f)', display:'inline-block', transform: adminOpen.additional ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>∨</span>
+                </button>
+                {adminOpen.additional && (
+                  <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:11 }}>
+                    {[['PG Version','15.3'],['Max Connections','200'],['Shared Buffers','1024 MB'],['WAL Level','replica'],['Archive Mode','on'],['Autovacuum','on']].map(([k,v])=>(
+                      <div key={k} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid var(--border-light,#d8dbde)', paddingBottom:4 }}>
+                        <span style={{ color:'var(--text-muted,#80868f)' }}>{k}</span>
+                        <span style={{ color:'var(--text-primary,#282c32)', fontWeight:600 }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Alert Logs */}
+              <div style={{ border:'1px solid var(--border,#c9cdd2)', margin:'0 12px 12px', borderRadius:6, overflow:'hidden' }}>
+                <button onClick={() => toggleAdmin('alert')} style={{ width:'100%', background: adminOpen.alert ? 'var(--card-bg,#fff)' : 'var(--grid-header-bg,#edf0f2)', border:'none', cursor:'pointer', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', color:'var(--text-primary,#282c32)', fontSize:12, fontWeight:700 }}>
+                  <span>Alert Logs</span>
+                  <span style={{ fontSize:12, color:'var(--text-muted,#80868f)', display:'inline-block', transform: adminOpen.alert ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>∨</span>
+                </button>
+                {adminOpen.alert && (
+                  <div style={{ padding:'6px 14px' }}>
+                    {[
+                      {level:'ERROR',msg:'could not serialize access due to concurrent update',time:'13:21:08'},
+                      {level:'WARN', msg:'autovacuum: table "demo3.public.orders" needs analyze',time:'13:18:44'},
+                    ].map((log, i) => (
+                      <div key={i} style={{ display:'flex', gap:8, padding:'4px 0', borderBottom:'1px solid var(--border-light,#d8dbde)', alignItems:'flex-start' }}>
+                        <span style={{ padding:'1px 5px', borderRadius:3, fontSize:9, fontWeight:700, background:log.level==='ERROR'?'#fee2e2':'#fef9c3', color:log.level==='ERROR'?'#dc2626':'#a16207', flexShrink:0 }}>{log.level}</span>
+                        <span style={{ fontSize:10, color:'var(--text-secondary,#626872)', flex:1, lineHeight:1.4 }}>{log.msg}</span>
+                        <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', flexShrink:0 }}>{log.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ══ RIGHT — Real Time Monitor ══ */}
         <div style={S.right}>
 
-          {/* ── Slow Query (RTM 라인차트) ── */}
-          <div style={{ ...S.card, margin:0, borderRadius:0, flexShrink:0 }}>
-            <div style={{ ...S.header, flexDirection:'column', alignItems:'flex-start', gap:1 }}>
-              <span style={{ fontSize:10 }}>Slow Query</span>
+          {/* Slow Query */}
+          {/* ── Slow Query (scatter) ── */}
+          <div style={{ ...S.card, flexShrink:0 }}>
+            <div style={{ ...S.hdr }}>
+              <span>Slow Query</span>
               <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', fontWeight:400 }}>Max Elapsed Count · Max Elapsed Duration(s)</span>
             </div>
-            <div style={{ background:'var(--card-bg,#fff)' }}>
-              <ReactECharts option={lineOpt(genSeries(N,4,2),'#ef4444','')} style={{ height:90 }} opts={{ renderer:'svg' }} />
+            <div style={{ background:'var(--card-bg,#fff)', cursor:'pointer', position:'relative' }} onClick={() => setSqModal(true)}>
+              <ReactECharts
+                option={sqScatterOpt(SQ_DOTS)}
+                style={{ height:sqPanelChartH }}
+                opts={{ renderer:'svg' }}
+                onEvents={{ click: () => setSqModal(true) }}
+              />
+              <div style={{ position:'absolute', bottom:8, right:8, fontSize:9, color:'#9fa5ae', pointerEvents:'none' }}>click to detail</div>
             </div>
+            {/* 리사이즈 핸들 */}
+            <div
+              onMouseDown={e => { e.stopPropagation(); startResize(e, sqPanelChartH, setSqPanelChartH) }}
+              style={{ height:5, cursor:'s-resize', background:'transparent', borderBottom:'2px solid var(--border,#c9cdd2)', transition:'background .15s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background='#c9cdd2'}
+              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background='transparent'}
+              title="드래그하여 차트 높이 조절"
+            />
           </div>
 
-          <div style={S.header}><span>Real Time Monitor</span></div>
-          {realtimeCharts.map(chart=>(
-            <div key={chart.label} style={{ ...S.card, margin:0, borderRadius:0 }}>
-              <div style={{ ...S.header, flexDirection:'column', alignItems:'flex-start', gap:1 }}>
-                <span style={{ fontSize:10 }}>{chart.label}</span>
-                {chart.subtitle && <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', fontWeight:400 }}>{chart.subtitle}</span>}
+          <div style={S.hdr}><span>Real Time Monitor</span></div>
+
+          {rtSelected.map((metricId, slotIdx) => {
+            const metric    = SV_RT_METRIC_POOL.find(m => m.id === metricId) ?? SV_RT_METRIC_POOL[0]
+            const slideOpen = rtSlideOpen === slotIdx
+            return (
+              <div key={slotIdx} style={{ ...S.card, flex: 1, minHeight: 80, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ ...S.hdr }}>
+                  <span style={{ flex: 1, fontSize: 10 }}>{metric.label} ({metric.unit})</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); setRtSlideOpen(slideOpen ? null : slotIdx) }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted,#80868f)', cursor: 'pointer', padding: '0 4px', fontSize: 15, lineHeight: 1, letterSpacing: 1 }}
+                  >···</button>
+                </div>
+                <div style={{ background: 'var(--card-bg,#fff)' }}>
+                  <SVRTLineChart metric={metric} height={80} />
+                </div>
+                {slideOpen && (
+                  <>
+                    <div onClick={() => setRtSlideOpen(null)} style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
+                    <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 220, background: '#fff', boxShadow: '-3px 0 12px rgba(0,0,0,0.12)', zIndex: 20, display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border,#c9cdd2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--grid-header-bg,#edf0f2)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary,#282c32)' }}>지표 변경</span>
+                        <button onClick={() => setRtSlideOpen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: 'var(--text-muted,#80868f)', lineHeight: 1 }}>×</button>
+                      </div>
+                      <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {SV_RT_METRIC_POOL.map(m => {
+                          const isSelected = m.id === metricId
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => { setRtSelected(prev => prev.map((id, i) => i === slotIdx ? m.id : id)); setRtSlideOpen(null) }}
+                              style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light,#d8dbde)', background: isSelected ? '#eff6ff' : 'transparent', fontSize: 11, color: isSelected ? '#3b82f6' : 'var(--text-secondary,#626872)', fontWeight: isSelected ? 600 : 400 }}
+                              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--grid-header-bg,#edf0f2)' }}
+                              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                            >
+                              <span>{m.label}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted,#80868f)' }}>({m.unit})</span>
+                              {isSelected && <span style={{ color: '#3b82f6', fontSize: 13, marginLeft: 4 }}>✓</span>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-              <div style={{ background:'var(--card-bg,#fff)' }}>
-                <ReactECharts option={lineOpt(chart.data, chart.color, chart.unit)} style={{ height:90 }} opts={{ renderer:'svg' }} />
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
-      {/* ── SESSION TAB SLIDE-UP ── */}
-      <div style={{ position:'fixed', bottom:0, left:220, right:0, background:'var(--card-bg,#fff)', borderTop:'2px solid var(--border,#c9cdd2)', zIndex:100, transition:'height .3s ease', height:sessionOpen?260:32, overflow:'hidden' }}>
-        <div onClick={()=>setSessionOpen(p=>!p)} style={{ height:32, display:'flex', alignItems:'center', padding:'0 16px', cursor:'pointer', gap:8, background:'var(--grid-header-bg,#edf0f2)', borderBottom:sessionOpen?'1px solid var(--border,#c9cdd2)':'none' }}>
-          <span style={{ fontSize:11 }}>{sessionOpen?'▼':'▲'}</span>
-          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary,#626872)' }}>Session Tab</span>
-          <span style={{ fontSize:10, color:'var(--text-muted,#80868f)' }}>Active Session List</span>
-          <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-            {[{color:'#22c55e',label:`Active: ${SESSIONS.filter(s=>s.state==='active').length}`},{color:'#9fa5ae',label:`Idle: ${SESSIONS.filter(s=>s.state==='idle').length}`},{color:'#f59e0b',label:'Wait: 1'}].map(b=>(
-              <span key={b.label} style={{ fontSize:10, color:b.color }}>{b.label}</span>
-            ))}
-          </div>
+      {/* ── BOTTOM SLIDE PANEL ── */}
+      <div style={{ position:'fixed', bottom:0, left:'var(--sidebar-width,220px)', right:0, background:'var(--card-bg,#fff)', borderTop:'2px solid var(--border,#c9cdd2)', zIndex:100, height:bottomOpen ? 292 : 32, overflow:'hidden', transition:'height .3s cubic-bezier(.4,0,.2,1)' }}>
+
+        {/* ── Session Tab 토글 바 (항상 표시, 유일한 토글) ── */}
+        <div
+          onClick={() => setBottomOpen(p => !p)}
+          style={{ height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'var(--grid-header-bg,#edf0f2)', cursor:'pointer', userSelect:'none', gap:6, borderBottom:'1px solid var(--border,#c9cdd2)' }}
+        >
+          <span style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary,#626872)', letterSpacing:0.3 }}>Session Tab</span>
+          <span style={{ fontSize:9, color:'var(--text-muted,#80868f)', lineHeight:1, display:'inline-block', transform: bottomOpen ? 'rotate(180deg)' : 'none', transition:'transform .3s' }}>▲</span>
         </div>
-        {sessionOpen && (
+
+        {/* ── 탭 선택 바 (열렸을 때만 의미 있음) ── */}
+        <div style={{ height:32, display:'flex', alignItems:'center', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--card-bg,#fff)', gap:0 }}>
+          {([['active','Active Backends'],['lock','Lock Tree']] as const).map(([k,label])=>(
+            <button key={k}
+              onClick={e => { e.stopPropagation(); setBottomTab(k) }}
+              style={{ height:'100%', padding:'0 18px', border:'none', borderRight:'1px solid var(--border,#c9cdd2)', background:bottomTab===k ? 'var(--card-bg,#fff)' : 'var(--grid-header-bg,#edf0f2)', color:bottomTab===k ? 'var(--text-primary,#282c32)' : 'var(--text-muted,#80868f)', fontSize:11, fontWeight:bottomTab===k ? 700 : 400, cursor:'pointer', borderBottom: bottomTab===k ? '2px solid #3b82f6' : '2px solid transparent' }}
+            >{label}</button>
+          ))}
+          <div style={{ flex:1 }} />
+          {bottomTab==='active' && (
+            <div style={{ display:'flex', gap:10, paddingRight:16, fontSize:10 }}>
+              <span style={{ color:'#22c55e' }}>Active: {ACTIVE_BACKENDS.length}</span>
+              <span style={{ color:'#f59e0b' }}>Wait: 1</span>
+            </div>
+          )}
+        </div>
+
+        {/* Active Backends */}
+        {bottomOpen && bottomTab==='active' && (
           <div style={{ height:228, overflowY:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
               <thead>
                 <tr style={{ background:'var(--grid-header-bg,#edf0f2)', position:'sticky', top:0 }}>
-                  {['PID','User','DB','State','Wait','Elapsed','SQL'].map(h=>(
+                  {['PID','User Name','Database Name','App Name','Client Address','Client Host Name','Backend Start','Elapsed Time (sec)'].map(h=>(
                     <th key={h} style={{ padding:'6px 10px', textAlign:'left', fontWeight:600, color:'var(--text-muted,#80868f)', whiteSpace:'nowrap', borderBottom:'1px solid var(--border,#c9cdd2)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {SESSIONS.map(s=>(
-                  <tr key={s.pid} onClick={()=>setSelectedPid(p=>p===s.pid?null:s.pid)}
-                    style={{ cursor:'pointer', background:selectedPid===s.pid?'#eff6ff':'transparent', borderBottom:'1px solid var(--border-light,#d8dbde)' }}
-                    onMouseEnter={e=>{if(selectedPid!==s.pid)(e.currentTarget as HTMLTableRowElement).style.background='var(--grid-hover-bg,#edf0f2)'}}
-                    onMouseLeave={e=>{if(selectedPid!==s.pid)(e.currentTarget as HTMLTableRowElement).style.background='transparent'}}
+                {ACTIVE_BACKENDS.map(s => (
+                  <tr key={s.pid} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)', cursor:'pointer' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='var(--grid-header-bg,#edf0f2)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
                   >
                     <td style={{ padding:'5px 10px', color:'#3b82f6', fontWeight:600 }}>{s.pid}</td>
-                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{s.user}</td>
-                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{s.db}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{s.userName}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{s.dbName}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)' }}>{s.appName}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)', fontVariantNumeric:'tabular-nums' }}>{s.clientAddr}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)' }}>{s.clientHost}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)', whiteSpace:'nowrap' }}>{s.backendStart}</td>
+                    <td style={{ padding:'5px 10px', color:s.elapsed>5?'#ef4444':s.elapsed>1?'#f59e0b':'var(--text-primary,#282c32)', fontWeight:600, fontVariantNumeric:'tabular-nums' }}>{s.elapsed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Lock Tree */}
+        {bottomOpen && bottomTab==='lock' && (
+          <div style={{ height:228, overflowY:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+              <thead>
+                <tr style={{ background:'var(--grid-header-bg,#edf0f2)', position:'sticky', top:0 }}>
+                  {['Database Name','PID','Lock Status','Holder PID','User Name'].map(h=>(
+                    <th key={h} style={{ padding:'6px 10px', textAlign:'left', fontWeight:600, color:'var(--text-muted,#80868f)', whiteSpace:'nowrap', borderBottom:'1px solid var(--border,#c9cdd2)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {LOCK_TREE.map((row, i) => (
+                  <tr key={i} style={{ borderBottom:'1px solid var(--border-light,#d8dbde)', cursor:'pointer' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='var(--grid-header-bg,#edf0f2)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
+                  >
+                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{row.dbName}</td>
+                    <td style={{ padding:'5px 10px', color:'#3b82f6', fontWeight:600 }}>{row.pid}</td>
                     <td style={{ padding:'5px 10px' }}>
-                      <span style={{ padding:'1px 6px', borderRadius:3, fontSize:10, fontWeight:600, background:s.state==='active'?'#dcfce7':'#f1f5f9', color:s.state==='active'?'#16a34a':'#64748b' }}>{s.state}</span>
+                      <span style={{ padding:'2px 6px', borderRadius:3, fontSize:10, fontWeight:600, background:row.lockStatus==='waiting'?'#fee2e2':'#dcfce7', color:row.lockStatus==='waiting'?'#dc2626':'#16a34a' }}>{row.lockStatus}</span>
                     </td>
-                    <td style={{ padding:'5px 10px', color:s.wait!=='-'?'#f59e0b':'var(--text-muted,#80868f)' }}>{s.wait}</td>
-                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)', fontVariantNumeric:'tabular-nums' }}>{s.elapsed}</td>
-                    <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.sql}</td>
+                    <td style={{ padding:'5px 10px', color:row.holderPid?'#f59e0b':'var(--text-muted,#80868f)', fontWeight:row.holderPid?600:400 }}>{row.holderPid ?? '-'}</td>
+                    <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{row.userName}</td>
                   </tr>
                 ))}
               </tbody>
@@ -553,6 +1246,211 @@ export default function PostgreSQLSingleView() {
           </div>
         )}
       </div>
+
+      {/* ── SLOT MODAL ── */}
+      {slotModal && (
+        <>
+          <div onClick={() => setSlotModal(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:200 }} />
+          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:201, background:'#fff', borderRadius:8, boxShadow:'0 8px 32px rgba(0,0,0,.2)', width:560, overflow:'hidden' }}>
+            <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--grid-header-bg,#edf0f2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary,#282c32)' }}>{slotModal.title}</span>
+              <button onClick={() => setSlotModal(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'var(--text-muted,#80868f)', lineHeight:1 }}>×</button>
+            </div>
+            <div style={{ padding:'12px 16px' }}>
+              <div style={{ fontSize:10, color:'var(--text-muted,#80868f)', marginBottom:4 }}>
+                <span style={{ color:slotModal.color, fontWeight:700 }}>■</span> AVG &nbsp;&nbsp; <span style={{ color:'#22c55e', fontWeight:700 }}>■</span> MAX
+              </div>
+              <ReactECharts option={modalLineOpt(slotModal.color)} style={{ height:180 }} opts={{ renderer:'svg' }} />
+            </div>
+            <div style={{ borderTop:'1px solid var(--border,#c9cdd2)', padding:'8px 16px' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted,#80868f)', marginBottom:6 }}>Vacuum</div>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                <thead><tr style={{ background:'var(--grid-header-bg,#edf0f2)' }}>{['Table','Type','Phase','Duration'].map(h=><th key={h} style={{ padding:'4px 8px', textAlign:'left', color:'var(--text-muted,#80868f)', fontWeight:600 }}>{h}</th>)}</tr></thead>
+                <tbody>{VACUUM_ROWS.map(row=>(
+                  <tr key={row[0]} style={{ borderTop:'1px solid var(--border-light,#d8dbde)' }}>
+                    {row.map((c,ci)=><td key={ci} style={{ padding:'4px 8px', color:ci===3?'#f59e0b':'var(--text-secondary,#626872)', fontWeight:ci===3?600:400 }}>{c}</td>)}
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SQL ELAPSED LIST 팝업
+      ══════════════════════════════════════════════════════ */}
+      {sqModal && (
+        <>
+          {/* 배경 dim */}
+          <div onClick={() => { setSqModal(false); setSqPidPanel(null) }} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:300 }} />
+
+          {/* 팝업 박스 — 드래그 리사이즈 가능 */}
+          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:301, display:'flex', background:'#fff', borderRadius:8, boxShadow:'0 12px 48px rgba(0,0,0,.25)', overflow:'hidden', width: sqPidPanel ? Math.max(sqPopupW, 1100) : sqPopupW, height:sqPopupH, maxWidth:'96vw', maxHeight:'92vh' }}>
+
+            {/* ── 왼쪽: SQL Elapsed List 본체 ── */}
+            <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+
+              {/* 헤더 */}
+              <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--grid-header-bg,#edf0f2)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+                <span style={{ fontSize:13, fontWeight:700, color:'var(--text-primary,#282c32)' }}>
+                  SQL Elapsed List ({SQ_TICK_TIMES[0]} ~ {SQ_TICK_TIMES[SQ_TICK_TIMES.length-1]})
+                </span>
+                <button onClick={() => { setSqModal(false); setSqPidPanel(null) }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'var(--text-muted,#80868f)', lineHeight:1 }}>×</button>
+              </div>
+
+              {/* 산점도 + 리사이즈 핸들 */}
+              <div style={{ flexShrink:0 }}>
+                <ReactECharts option={sqPopupScatterOpt(sqFiltered)} style={{ height:sqPopupChartH }} opts={{ renderer:'svg' }} />
+                <div
+                  onMouseDown={e => startResize(e, sqPopupChartH, setSqPopupChartH)}
+                  style={{ height:5, cursor:'s-resize', background:'transparent', borderBottom:'2px solid var(--border,#c9cdd2)', transition:'background .15s' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background='#c9cdd2'}
+                  onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background='transparent'}
+                  title="드래그하여 차트 높이 조절"
+                />
+              </div>
+
+              {/* ── 필터 바 (database Active Session Tab 과 동일한 패턴) ── */}
+              <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderBottom:'1px solid var(--border,#c9cdd2)', flexShrink:0, background:'#fafbfc' }}>
+                <select
+                  value={sqFilterMode}
+                  onChange={e => setSqFilterMode(e.target.value as 'OR'|'AND')}
+                  style={{ padding:'4px 8px', fontSize:12, border:'1px solid #d1d5db', borderRadius:4, background:'#fff', color:'#374151', cursor:'pointer', height:34, flexShrink:0 }}
+                >
+                  <option>OR</option>
+                  <option>AND</option>
+                </select>
+                <FilterBar
+                  filters={sqFilters}
+                  onAdd={chip => setSqFilters(prev => [...prev, chip])}
+                  onRemove={id => setSqFilters(prev => prev.filter(f => f.id !== id))}
+                  onClear={() => setSqFilters([])}
+                />
+                <span style={{ fontSize:11, color:'#9fa5ae', flexShrink:0 }}>{sqFiltered.length}/{SQ_DOTS.length}</span>
+              </div>
+
+              {/* 테이블 */}
+              <div style={{ flex:1, overflowY:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ background:'var(--grid-header-bg,#edf0f2)', position:'sticky', top:0 }}>
+                      {['Instance Name','PID','User Name','Database Name','App Name','Client Address','Client Host Name','Elapsed Time (sec)','SQL Text'].map(h=>(
+                        <th key={h} style={{ padding:'6px 10px', textAlign:'left', fontWeight:600, color:'var(--text-muted,#80868f)', whiteSpace:'nowrap', borderBottom:'1px solid var(--border,#c9cdd2)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sqFiltered.length === 0 ? (
+                      <tr><td colSpan={9} style={{ padding:'24px', textAlign:'center', color:'#9fa5ae', fontSize:12 }}>필터 조건에 맞는 데이터가 없습니다.</td></tr>
+                    ) : sqFiltered.map((d,i)=>(
+                      <tr key={i}
+                        style={{ borderBottom:'1px solid var(--border-light,#d8dbde)', background: sqPidPanel===d.pid ? '#eff6ff' : 'transparent' }}
+                        onMouseEnter={e=>(e.currentTarget as HTMLTableRowElement).style.background = sqPidPanel===d.pid ? '#eff6ff' : 'var(--grid-header-bg,#edf0f2)'}
+                        onMouseLeave={e=>(e.currentTarget as HTMLTableRowElement).style.background = sqPidPanel===d.pid ? '#eff6ff' : 'transparent'}
+                      >
+                        <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>207 PG 15</td>
+                        <td style={{ padding:'5px 10px' }}>
+                          <span onClick={() => setSqPidPanel(p => p===d.pid ? null : d.pid)} style={{ color:'#3b82f6', fontWeight:700, cursor:'pointer', textDecoration:'underline' }}>{d.pid}</span>
+                        </td>
+                        <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>{d.userName}</td>
+                        <td style={{ padding:'5px 10px', color:'var(--text-secondary,#626872)' }}>demo3</td>
+                        <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)' }}>{d.appName}</td>
+                        <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)', fontVariantNumeric:'tabular-nums' }}>{d.clientAddr}</td>
+                        <td style={{ padding:'5px 10px', color:'var(--text-muted,#80868f)' }}>{d.clientHost}</td>
+                        <td style={{ padding:'5px 10px', fontWeight:700, color: d.elapsed>40?'#ef4444':d.elapsed>20?'#f59e0b':'#16a34a', fontVariantNumeric:'tabular-nums' }}>{d.elapsed.toFixed(3)}</td>
+                        <td style={{ padding:'5px 10px', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <span onClick={() => setSqlTextPopup(d.sqlText)} style={{ color:'#3b82f6', cursor:'pointer', textDecoration:'underline' }}>{d.sqlText}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── 우측: PID 세션 정보 패널 (슬라이드) ── */}
+            {sqPidPanel !== null && (() => {
+              const session = ACTIVE_BACKENDS.find(s => s.pid === sqPidPanel) ?? {
+                pid: sqPidPanel, userName: SQ_DOTS.find(d=>d.pid===sqPidPanel)?.userName ?? '-',
+                dbName:'demo3', appName: SQ_DOTS.find(d=>d.pid===sqPidPanel)?.appName ?? '-',
+                clientAddr: SQ_DOTS.find(d=>d.pid===sqPidPanel)?.clientAddr ?? '-',
+                clientHost: SQ_DOTS.find(d=>d.pid===sqPidPanel)?.clientHost ?? '-',
+                backendStart:'2026-04-17 08:00:00', elapsed: SQ_DOTS.find(d=>d.pid===sqPidPanel)?.elapsed ?? 0
+              }
+              return (
+                <div style={{ width:380, flexShrink:0, borderLeft:'2px solid var(--border,#c9cdd2)', display:'flex', flexDirection:'column', overflow:'hidden', background:'#fafbfc' }}>
+                  {/* 패널 헤더 */}
+                  <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--grid-header-bg,#edf0f2)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary,#282c32)' }}>Session Info — PID {sqPidPanel}</span>
+                    <button onClick={() => setSqPidPanel(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'var(--text-muted,#80868f)' }}>×</button>
+                  </div>
+                  {/* 세션 정보 */}
+                  <div style={{ padding:'12px 14px', overflowY:'auto', flex:1 }}>
+                    {[
+                      ['PID',             String(session.pid)],
+                      ['User Name',       session.userName],
+                      ['Database Name',   session.dbName],
+                      ['App Name',        session.appName],
+                      ['Client Address',  session.clientAddr],
+                      ['Client Host',     session.clientHost],
+                      ['Backend Start',   session.backendStart],
+                      ['Elapsed (sec)',   String(session.elapsed)],
+                    ].map(([k,v])=>(
+                      <div key={k} style={{ display:'flex', borderBottom:'1px solid var(--border-light,#d8dbde)', padding:'8px 0' }}>
+                        <span style={{ width:120, flexShrink:0, fontSize:11, color:'var(--text-muted,#80868f)', fontWeight:600 }}>{k}</span>
+                        <span style={{ fontSize:11, color:'var(--text-primary,#282c32)', wordBreak:'break-all' }}>{v}</span>
+                      </div>
+                    ))}
+
+                    {/* 해당 PID의 Slow Query 목록 */}
+                    <div style={{ marginTop:16 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary,#626872)', marginBottom:8 }}>Slow Queries (this PID)</div>
+                      {SQ_DOTS.filter(d=>d.pid===sqPidPanel).map((d,i)=>(
+                        <div key={i} style={{ background:'#fff', border:'1px solid var(--border,#c9cdd2)', borderRadius:6, padding:'8px 10px', marginBottom:6 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                            <span style={{ fontSize:10, color:'var(--text-muted,#80868f)' }}>{d.time}</span>
+                            <span style={{ fontSize:11, fontWeight:700, color: d.elapsed>40?'#ef4444':'#f59e0b' }}>{d.elapsed.toFixed(3)}s</span>
+                          </div>
+                          <div
+                            style={{ fontSize:10, color:'#3b82f6', cursor:'pointer', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                            onClick={() => setSqlTextPopup(d.sqlText)}
+                          >{d.sqlText}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* ── 팝업 리사이즈 핸들 ── */}
+            {/* 우측 변 */}
+            <div onMouseDown={e => startPopupResize(e, 'e')} style={{ position:'absolute', top:0, right:0, width:6, height:'100%', cursor:'ew-resize', zIndex:10 }} />
+            {/* 하단 변 */}
+            <div onMouseDown={e => startPopupResize(e, 's')} style={{ position:'absolute', bottom:0, left:0, width:'100%', height:6, cursor:'s-resize', zIndex:10 }} />
+            {/* 우하 모서리 */}
+            <div onMouseDown={e => startPopupResize(e, 'se')} style={{ position:'absolute', bottom:0, right:0, width:14, height:14, cursor:'se-resize', zIndex:11, background:'linear-gradient(135deg, transparent 50%, #c9cdd2 50%)', borderRadius:'0 0 8px 0' }} />
+          </div>
+        </>
+      )}
+
+      {/* SQL Text 미니 팝업 */}
+      {sqlTextPopup && (
+        <>
+          <div onClick={() => setSqlTextPopup(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.3)', zIndex:400 }} />
+          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:401, background:'#fff', borderRadius:8, boxShadow:'0 8px 32px rgba(0,0,0,.2)', width:600, overflow:'hidden' }}>
+            <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border,#c9cdd2)', background:'var(--grid-header-bg,#edf0f2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary,#282c32)' }}>SQL Text</span>
+              <button onClick={() => setSqlTextPopup(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'var(--text-muted,#80868f)' }}>×</button>
+            </div>
+            <div style={{ padding:'16px', maxHeight:300, overflowY:'auto' }}>
+              <pre style={{ margin:0, fontSize:12, color:'var(--text-primary,#282c32)', background:'#f6f8fa', padding:'12px 14px', borderRadius:6, border:'1px solid var(--border,#c9cdd2)', whiteSpace:'pre-wrap', wordBreak:'break-all', lineHeight:1.7, fontFamily:'Consolas, monospace' }}>{sqlTextPopup}</pre>
+            </div>
+          </div>
+        </>
+      )}
+
     </div>
   )
 }
